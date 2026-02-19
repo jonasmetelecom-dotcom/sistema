@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  server:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: fttx-server
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/data/db.sqlite
+      - PORT=3000
+    volumes:
+      - ./data:/data
+
+  client:
+    build: 
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: fttx-client
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - server
