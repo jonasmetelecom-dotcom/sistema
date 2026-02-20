@@ -102,3 +102,6 @@ Sempre que eu (a IA) ou você fizermos melhorias no código, siga estes passos n
     docker compose up -d --build
     ```
     *Isso vai garantir que todas as alterações (frontend, backend e configurações) sejam aplicadas.*
+
+> [!TIP]
+> Também incluí scripts de automação: `update.bat` (Windows) e `update.sh` (Linux), caso decida rodar fora do Docker no futuro.

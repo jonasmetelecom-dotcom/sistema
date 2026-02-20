@@ -49,20 +49,36 @@ export class SystemController {
         const { spawn } = require('child_process');
         const path = require('path');
 
-        // Path to update.bat in root
+        const isWindows = process.platform === 'win32';
         const batchPath = path.resolve(__dirname, '../../../../update.bat');
+        const shPath = path.resolve(__dirname, '../../../../update.sh');
 
-        console.log(`[UPDATE] Triggering update script at ${batchPath}`);
+        console.log(`[UPDATE] Triggering update. Platform: ${process.platform}`);
 
-        // Spawn detached process
-        const subprocess = spawn('cmd.exe', ['/c', 'start', '/min', batchPath], {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: false
-        });
+        if (isWindows) {
+            // Windows logic
+            const subprocess = spawn('cmd.exe', ['/c', 'start', '/min', batchPath], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            subprocess.unref();
+            return { message: 'Update started on Windows. Server will restart.' };
+        } else {
+            // Linux/macOS logic
+            // In Docker, we usually can't self-update easily, so we just log and return message
+            if (require('fs').existsSync('/.dockerenv')) {
+                return {
+                    message: 'Running in Docker. Please run "git pull && docker compose up -d --build" on the host server.',
+                    isDocker: true
+                };
+            }
 
-        subprocess.unref();
-
-        return { message: 'Update started. The server will restart shortly.' };
+            const subprocess = spawn('bash', [shPath], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            subprocess.unref();
+            return { message: 'Update started on Linux. Server will restart.' };
+        }
     }
 }

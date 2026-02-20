@@ -45,15 +45,32 @@ let SystemController = class SystemController {
         }
         const { spawn } = require('child_process');
         const path = require('path');
+        const isWindows = process.platform === 'win32';
         const batchPath = path.resolve(__dirname, '../../../../update.bat');
-        console.log(`[UPDATE] Triggering update script at ${batchPath}`);
-        const subprocess = spawn('cmd.exe', ['/c', 'start', '/min', batchPath], {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: false
-        });
-        subprocess.unref();
-        return { message: 'Update started. The server will restart shortly.' };
+        const shPath = path.resolve(__dirname, '../../../../update.sh');
+        console.log(`[UPDATE] Triggering update. Platform: ${process.platform}`);
+        if (isWindows) {
+            const subprocess = spawn('cmd.exe', ['/c', 'start', '/min', batchPath], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            subprocess.unref();
+            return { message: 'Update started on Windows. Server will restart.' };
+        }
+        else {
+            if (require('fs').existsSync('/.dockerenv')) {
+                return {
+                    message: 'Running in Docker. Please run "git pull && docker compose up -d --build" on the host server.',
+                    isDocker: true
+                };
+            }
+            const subprocess = spawn('bash', [shPath], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            subprocess.unref();
+            return { message: 'Update started on Linux. Server will restart.' };
+        }
     }
 };
 exports.SystemController = SystemController;

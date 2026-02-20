@@ -1,0 +1,16 @@
+Para aplicar a correção que fiz agora:
+1 No seu computador (aqui): Envie as mudanças para o git (se já não fez):
+bash
+
+git add .
+git commit -m "Correção de API e Nginx"
+git push
+
+2 Na sua VM (lá no Vmware): Rode estes comandos para atualizar:
+bash
+cd fttx-manager
+git pull
+docker compose up -d --build
+
+Assim que o comando terminar, o sistema estará atualizado com as correções de conexão! 🚀
+Adicionei esses passos de "Como Atualizar" no final do arquivo DEPLOY.md para você não esquecer.

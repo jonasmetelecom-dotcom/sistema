@@ -12,5 +12,9 @@ export declare class SystemController {
     }>;
     triggerUpdate(): Promise<{
         message: string;
+        isDocker?: undefined;
+    } | {
+        message: string;
+        isDocker: boolean;
     }>;
 }
