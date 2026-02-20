@@ -48,10 +48,11 @@ let TenantsService = class TenantsService {
         return this.findOne(id);
     }
     async remove(id) {
-        const result = await this.tenantRepository.delete(id);
-        if (result.affected === 0) {
-            throw new common_1.NotFoundException(`Tenant with ID ${id} not found`);
+        const tenant = await this.findOne(id);
+        if (tenant.slug === 'default') {
+            throw new common_1.ConflictException('O tenant padrão não pode ser excluído.');
         }
+        await this.tenantRepository.delete(id);
     }
 };
 exports.TenantsService = TenantsService;

@@ -64,7 +64,7 @@ __decorate([
     __metadata("design:type", Number)
 ], Project.prototype, "longitude", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => tenant_entity_1.Tenant),
+    (0, typeorm_1.ManyToOne)(() => tenant_entity_1.Tenant, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'tenantId' }),
     __metadata("design:type", tenant_entity_1.Tenant)
 ], Project.prototype, "tenant", void 0);

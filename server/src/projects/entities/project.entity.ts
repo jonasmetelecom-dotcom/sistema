@@ -38,7 +38,7 @@ export class Project {
   @Column({ type: 'float', nullable: true })
   longitude: number;
 
-  @ManyToOne(() => Tenant)
+  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 

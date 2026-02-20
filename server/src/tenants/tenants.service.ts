@@ -14,7 +14,7 @@ export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
-  ) {}
+  ) { }
 
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
     const existing = await this.tenantRepository.findOne({
@@ -46,9 +46,10 @@ export class TenantsService {
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.tenantRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Tenant with ID ${id} not found`);
+    const tenant = await this.findOne(id);
+    if (tenant.slug === 'default') {
+      throw new ConflictException('O tenant padrão não pode ser excluído.');
     }
+    await this.tenantRepository.delete(id);
   }
 }

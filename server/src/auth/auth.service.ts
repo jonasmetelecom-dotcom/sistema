@@ -18,7 +18,7 @@ export class AuthService {
     private jwtService: JwtService,
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
-  ) {}
+  ) { }
 
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
@@ -48,9 +48,22 @@ export class AuthService {
       throw new ConflictException('User already exists');
     }
 
+    // Generate unique slug
+    let slug = registerDto.companyName.toLowerCase().trim()
+      .replace(/[^\w\s-]/g, '') // remove special chars
+      .replace(/[\s_-]+/g, '-')  // replace spaces/underscores with -
+      .replace(/^-+|-+$/g, '');   // trim -
+
+    let baseSlug = slug;
+    let counter = 2;
+    while (await this.tenantRepository.findOne({ where: { slug } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
     // Create Tenant
     const tenant = this.tenantRepository.create({
-      slug: registerDto.companyName.toLowerCase().replace(/ /g, '-'),
+      slug: slug,
       name: registerDto.companyName,
       plan: 'free',
       isActive: true,

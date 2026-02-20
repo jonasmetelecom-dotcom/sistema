@@ -26,7 +26,7 @@ export class User {
   @Column({ default: 'user' })
   role: string; // admin, engineer, viewer
 
-  @ManyToOne(() => Tenant)
+  @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 

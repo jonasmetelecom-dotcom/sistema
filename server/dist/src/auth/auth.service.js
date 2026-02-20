@@ -87,8 +87,18 @@ let AuthService = class AuthService {
         if (existingUser) {
             throw new common_1.ConflictException('User already exists');
         }
+        let slug = registerDto.companyName.toLowerCase().trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        let baseSlug = slug;
+        let counter = 2;
+        while (await this.tenantRepository.findOne({ where: { slug } })) {
+            slug = `${baseSlug}-${counter}`;
+            counter++;
+        }
         const tenant = this.tenantRepository.create({
-            slug: registerDto.companyName.toLowerCase().replace(/ /g, '-'),
+            slug: slug,
             name: registerDto.companyName,
             plan: 'free',
             isActive: true,
