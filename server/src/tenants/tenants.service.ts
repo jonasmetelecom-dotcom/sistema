@@ -50,6 +50,6 @@ export class TenantsService {
     if (tenant.slug === 'default') {
       throw new ConflictException('O tenant padrão não pode ser excluído.');
     }
-    await this.tenantRepository.delete(id);
+    await this.tenantRepository.remove(tenant);
   }
 }
