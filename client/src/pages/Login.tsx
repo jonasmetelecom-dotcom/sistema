@@ -103,6 +103,7 @@ const Login = () => {
                                 Cadastre-se
                             </Link>
                         </p>
+                        <p className="text-[10px] text-gray-600 mt-4 opacity-50">v1.1.0-fix-ip</p>
                     </div>
                 </div>
             </div>
