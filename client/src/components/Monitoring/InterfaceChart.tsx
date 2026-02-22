@@ -12,12 +12,13 @@ interface InterfaceChartProps {
 }
 
 export const InterfaceChart = ({ data, name }: InterfaceChartProps) => {
-    const formatBps = (value: number) => {
-        if (value === 0) return '0 bps';
+    const formatBps = (value: number | string) => {
+        const val = Number(value) || 0;
+        if (val === 0) return '0 bps';
         const k = 1024;
         const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps'];
-        const i = Math.floor(Math.log(value) / Math.log(k));
-        return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        const i = Math.floor(Math.log(val) / Math.log(k));
+        return parseFloat((val / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     return (
@@ -56,7 +57,7 @@ export const InterfaceChart = ({ data, name }: InterfaceChartProps) => {
                         <Tooltip
                             contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }}
                             itemStyle={{ fontSize: '12px' }}
-                            formatter={(value: number) => [formatBps(value), 'Bits/s']}
+                            formatter={(value: number | string) => [formatBps(Number(value) || 0), 'Bits/s']}
                         />
                         <Area
                             type="monotone"
