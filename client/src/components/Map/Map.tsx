@@ -788,20 +788,18 @@ const Map = () => {
         <div className="flex-1 relative h-full w-full">
             {loading && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-pulse">
-                    <RefreshCw size={14} className="animate-spin" />
                     Atualizando Mapa...
                 </div>
             )}
 
             {error && (
                 <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-red-600/90 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-                    <AlertTriangle size={20} />
                     <span>{error}</span>
                     <button
                         onClick={() => fetchElements()}
                         className="bg-white/20 hover:bg-white/30 p-1.5 rounded-lg transition-colors"
                     >
-                        <RefreshCw size={16} />
+                        Tentar Novamente
                     </button>
                 </div>
             )}
@@ -829,7 +827,6 @@ const Map = () => {
                 <div className={`flex items-center bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 ${isSearchOpen ? 'w-64 px-4 py-2' : 'w-12 h-12 justify-center'}`}>
                     {isSearchOpen ? (
                         <div className="flex items-center gap-2 w-full">
-                            <Search size={18} className="text-blue-400 shrink-0" />
                             <input
                                 autoFocus
                                 type="text"
@@ -844,7 +841,7 @@ const Map = () => {
                         </div>
                     ) : (
                         <button onClick={() => setIsSearchOpen(true)} className="w-full h-full flex items-center justify-center text-blue-400 hover:text-blue-300">
-                            <Search size={22} />
+                            BUSCAR
                         </button>
                     )}
                 </div>
@@ -868,7 +865,7 @@ const Map = () => {
                                         {result.serialNumber ? `SN: ${result.serialNumber}` : `ID: ${result.id.slice(0, 12)}...`}
                                     </div>
                                 </div>
-                                <ZoomIn size={14} className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold">VER</span>
                             </button>
                         ))}
                     </div>
@@ -884,7 +881,6 @@ const Map = () => {
                 }}
                 onOpenInternals={(id) => setViewingBoxId(id)}
                 onTrace={handleTrace}
-                onOTDR={handleOTDR}
                 onDelete={handleDelete}
             />
 
