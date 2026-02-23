@@ -14,11 +14,11 @@ import { Public } from './public.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   @Public()
   @Post('login')
-  async login(@Body() loginDto: LoginDto) {
+  async login(@Body() loginDto: LoginDto, @Request() req: any) {
     const user = await this.authService.validateUser(
       loginDto.email,
       loginDto.password,
@@ -29,7 +29,16 @@ export class AuthController {
         message: 'Unauthorized',
       };
     }
-    return this.authService.login(user);
+
+    // Try to get IP from request
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+    return this.authService.login(user, {
+      deviceId: loginDto.deviceId,
+      latitude: loginDto.latitude,
+      longitude: loginDto.longitude,
+      ipAddress: typeof ipAddress === 'string' ? ipAddress : ipAddress?.[0],
+    });
   }
 
   @Public()

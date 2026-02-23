@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
+import { UserSession } from './entities/user-session.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -10,7 +11,16 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(UserSession)
+    private sessionRepository: Repository<UserSession>,
   ) { }
+
+  async getUserSessions(userId: string): Promise<UserSession[]> {
+    return this.sessionRepository.find({
+      where: { userId, isActive: true },
+      order: { lastSeen: 'DESC' },
+    });
+  }
 
   async create(userData: any): Promise<User> {
     if (userData.password) {

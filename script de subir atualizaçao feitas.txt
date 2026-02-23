@@ -1,9 +1,10 @@
-Para aplicar a correção que fiz agora:
+Para aplicar o novo recurso CONECTADO e MELHORIAS MOBILE:
+
 1 No seu computador (aqui): Envie as mudanças para o git (se já não fez):
 bash
 
 git add .
-git commit -m "Correção de API e Nginx"
+git commit -m "feat: login tracking and connected devices"
 git push
 
 2 Na sua VM (lá no Vmware): Rode estes comandos para atualizar:
@@ -12,38 +13,4 @@ cd fttx-manager
 git pull
 docker compose up -d --build
 
-Assim que o comando terminar, o sistema estará atualizado com as correções de conexão! 🚀
-Adicionei esses passos de "Como Atualizar" no final do arquivo DEPLOY.md para você não esquecer.
-
-
-
-
-
-
-
------------------------------------------------------------------------------------------------------------------------------------------
-
-
-Vamos forçar a atualização na VM para garantir que ela pegue o código novo:
-
-1. No seu PC (aqui):
-Garanta que enviou TUDO para o git:
-
-bash
-git add .
-git commit -m "fix: force update everything"
-git push
-2. Na VM (VMware via SSH):
-Rode estes comandos para forçar a limpeza e reconstrução total:
-
-bash
-cd fttx-manager
-git pull
-# O comando abaixo para tudo, limpa o cache e reconstrói do zero:
-docker compose down
-docker compose build --no-cache
-docker compose up -d --force-recreate
-3. Como saber se funcionou?
-Após rodar os comandos acima, atualize a página no navegador. Se aparecer o campo "Confirmar Senha" na tela de Cadastro, significa que deu certo!
-
-Se ainda assim der erro, me mande o que aparece quando você digita git log -n 1 lá na VM. 🫡
+Assim que o comando terminar, o sistema estará atualizado com o botão CONECTADO e as melhorias para celular! 🚀🫡

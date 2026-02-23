@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { UserSession } from '../users/entities/user-session.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -18,6 +19,8 @@ export class AuthService {
     private jwtService: JwtService,
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
+    @InjectRepository(UserSession)
+    private sessionRepository: Repository<UserSession>,
   ) { }
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -48,13 +51,42 @@ export class AuthService {
     return null;
   }
 
-  async login(user: any) {
+  async login(user: any, sessionData?: { deviceId?: string; latitude?: number; longitude?: number; ipAddress?: string }) {
     const payload = {
       username: user.email,
       sub: user.id,
       tenantId: user.tenantId,
       role: user.role,
     };
+
+    // Track Session
+    if (sessionData?.deviceId) {
+      const existingSession = await this.sessionRepository.findOne({
+        where: { userId: user.id, deviceId: sessionData.deviceId }
+      });
+
+      if (existingSession) {
+        existingSession.latitude = sessionData.latitude || existingSession.latitude;
+        existingSession.longitude = sessionData.longitude || existingSession.longitude;
+        existingSession.ipAddress = sessionData.ipAddress || existingSession.ipAddress;
+        existingSession.lastSeen = new Date();
+        existingSession.isActive = true;
+        await this.sessionRepository.save(existingSession);
+      } else {
+        const newSession = this.sessionRepository.create({
+          userId: user.id,
+          deviceId: sessionData.deviceId,
+          tenantId: user.tenantId,
+          latitude: sessionData.latitude,
+          longitude: sessionData.longitude,
+          ipAddress: sessionData.ipAddress,
+          lastSeen: new Date(),
+          isActive: true,
+        });
+        await this.sessionRepository.save(newSession);
+      }
+    }
+
     return {
       access_token: this.jwtService.sign(payload),
       user: user,

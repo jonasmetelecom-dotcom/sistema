@@ -179,7 +179,7 @@ export const NetworkToolbar = ({
             {/* Float Settings Popovers - Outside Scroll Area */}
             <div className="relative">
                 {activeTool === 'cable' && cableSettings && onCableSettingsChange && (
-                    <div className="absolute left-[calc(100%+0.75rem)] top-[-10rem] bg-gray-950/95 border border-white/10 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-56 flex flex-col gap-4 animate-in slide-in-from-left-4 duration-300 backdrop-blur-2xl ring-1 ring-white/10">
+                    <div className="fixed inset-x-4 bottom-24 sm:absolute sm:inset-auto sm:left-[calc(100%+0.75rem)] sm:top-[-10rem] bg-gray-950/95 border border-white/10 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-auto sm:w-56 flex flex-col gap-4 animate-in slide-in-from-bottom sm:slide-in-from-left-4 duration-300 backdrop-blur-2xl ring-1 ring-white/10 z-[1001]">
                         <div className="flex items-center gap-3 text-pink-400 border-b border-white/5 pb-3">
                             <div className="p-2 bg-pink-500/10 rounded-lg">
                                 <Settings2 size={16} />
@@ -222,7 +222,7 @@ export const NetworkToolbar = ({
                 )}
 
                 {activeTool === 'box' && boxSettings && onBoxSettingsChange && (
-                    <div className="absolute left-[calc(100%+0.75rem)] top-[-10rem] bg-gray-950/95 border border-white/10 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-56 flex flex-col gap-4 animate-in slide-in-from-left-4 duration-300 backdrop-blur-2xl ring-1 ring-white/10">
+                    <div className="fixed inset-x-4 bottom-24 sm:absolute sm:inset-auto sm:left-[calc(100%+0.75rem)] sm:top-[-10rem] bg-gray-950/95 border border-white/10 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-auto sm:w-56 flex flex-col gap-4 animate-in slide-in-from-bottom sm:slide-in-from-left-4 duration-300 backdrop-blur-2xl ring-1 ring-white/10 z-[1001]">
                         <div className="flex items-center gap-3 text-green-400 border-b border-white/5 pb-3">
                             <div className="p-2 bg-green-500/10 rounded-lg">
                                 <Settings2 size={16} />

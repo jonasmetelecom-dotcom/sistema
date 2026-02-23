@@ -44,6 +44,11 @@ export class UsersController {
     return this.usersService.update(req.user.id, updateUserDto);
   }
 
+  @Get('sessions')
+  getUserSessions(@Request() req: any) {
+    return this.usersService.getUserSessions(req.user.id);
+  }
+
   @Get(':id')
   @Roles('admin')
   findOne(@Param('id') id: string) {

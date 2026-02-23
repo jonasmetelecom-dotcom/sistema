@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { User, Lock, Monitor, Info, Save, RefreshCw, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Lock, Monitor, Info, Save, RefreshCw, CheckCircle, AlertCircle, Download, MapPin, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
@@ -45,6 +45,20 @@ const Settings = () => {
                         <div>
                             <p className="font-medium">Segurança</p>
                             <p className="text-xs opacity-70">Senha e acesso</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('connections')}
+                        className={`text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'connections'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                            }`}
+                    >
+                        <Monitor size={20} />
+                        <div>
+                            <p className="font-medium">Conexões</p>
+                            <p className="text-xs opacity-70">Aparelhos logados</p>
                         </div>
                     </button>
 
@@ -183,6 +197,10 @@ const Settings = () => {
                         </div>
                     )}
 
+                    {activeTab === 'connections' && (
+                        <UserConnections />
+                    )}
+
                     {activeTab === 'about' && (
                         <div className="max-w-xl text-center flex flex-col items-center justify-center h-full opacity-80">
                             <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
@@ -304,6 +322,112 @@ const UpdateSystem = () => {
                 {status === 'checking' ? <RefreshCw className="animate-spin" size={18} /> : <RefreshCw size={18} />}
                 {status === 'checking' ? 'Verificando...' : 'Verificar Atualizações'}
             </button>
+        </div>
+    );
+};
+
+const UserConnections = () => {
+    const [sessions, setSessions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchSessions = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/users/sessions');
+            setSessions(res.data);
+        } catch (error) {
+            console.error('Error fetching sessions:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchSessions();
+    }, []);
+
+    const isCurrentDevice = (deviceId: string) => {
+        return deviceId === localStorage.getItem('deviceId');
+    };
+
+    return (
+        <div className="max-w-3xl">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Monitor className="text-blue-400" />
+                    Aparelhos Conectados
+                </h2>
+                <button
+                    onClick={fetchSessions}
+                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors text-gray-400"
+                    title="Atualizar"
+                >
+                    <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                </button>
+            </div>
+
+            <div className="space-y-4">
+                {sessions.length === 0 && !loading && (
+                    <p className="text-gray-500 text-center py-8">Nenhum aparelho encontrado.</p>
+                )}
+
+                {sessions.map((session) => (
+                    <div
+                        key={session.id}
+                        className={`bg-gray-900/50 border rounded-xl p-5 flex items-center justify-between transition-all ${isCurrentDevice(session.deviceId) ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-gray-700'
+                            }`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isCurrentDevice(session.deviceId) ? 'bg-blue-600/20 text-blue-400' : 'bg-gray-800 text-gray-400'
+                                }`}>
+                                <Monitor size={24} />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <p className="font-bold text-white">
+                                        ID: {session.deviceId.substring(0, 8)}... (MAC)
+                                    </p>
+                                    {isCurrentDevice(session.deviceId) && (
+                                        <span className="bg-blue-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full text-white">
+                                            Este Dispositivo
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-gray-400">IP: {session.ipAddress || 'Não identificado'}</p>
+                                <p className="text-xs text-gray-500">
+                                    Visto em: {new Date(session.lastSeen).toLocaleString('pt-BR')}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {session.latitude && session.longitude ? (
+                                <a
+                                    href={`https://www.google.com/maps?q=${session.latitude},${session.longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm flex items-center gap-2 border border-gray-600 transition-colors"
+                                >
+                                    <MapPin size={16} className="text-red-400" />
+                                    Ver no Mapa
+                                    <ExternalLink size={14} className="opacity-50" />
+                                </a>
+                            ) : (
+                                <span className="text-xs text-gray-600 italic px-4">Localização não disponível</span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {sessions.length > 1 && (
+                <div className="mt-8 p-4 bg-blue-900/20 border border-blue-900/50 rounded-xl">
+                    <p className="text-sm text-blue-300 flex items-center gap-2">
+                        <MapIcon size={18} />
+                        Há {sessions.length} aparelhos ativos. Você pode monitorar a localização de cada um acima.
+                    </p>
+                </div>
+            )}
         </div>
     );
 };

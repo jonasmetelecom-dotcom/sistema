@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, MapPin } from 'lucide-react';
 
 const schema = z.object({
     name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
@@ -18,9 +18,28 @@ type FormData = z.infer<typeof schema>;
 
 const NewProject = () => {
     const navigate = useNavigate();
-    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+    const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm({
         resolver: zodResolver(schema)
     });
+
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocalização não é suportada pelo seu navegador.');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setValue('latitude', position.coords.latitude);
+                setValue('longitude', position.coords.longitude);
+            },
+            (error) => {
+                console.error('Error getting location:', error);
+                alert('Não foi possível obter sua localização. Verifique as permissões do GPS.');
+            }
+        );
+    };
+
 
     const onSubmit = async (data: FormData) => {
         try {
@@ -69,30 +88,44 @@ const NewProject = () => {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Latitude Inicial</label>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    {...register('latitude')}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
-                                    placeholder="-23.5505"
-                                />
-                                {errors.latitude && <p className="text-red-400 text-sm mt-1">{errors.latitude.message}</p>}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <label className="block text-sm font-medium text-gray-300">Coordenadas Iniciais</label>
+                                <button
+                                    type="button"
+                                    onClick={handleGetLocation}
+                                    className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-400/10 px-2 py-1 rounded"
+                                >
+                                    <MapPin size={12} />
+                                    Usar minha Localização (GPS)
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Longitude Inicial</label>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    {...register('longitude')}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
-                                    placeholder="-46.6333"
-                                />
-                                {errors.longitude && <p className="text-red-400 text-sm mt-1">{errors.longitude.message}</p>}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 ml-1">Latitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        {...register('latitude')}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
+                                        placeholder="-23.5505"
+                                    />
+                                    {errors.latitude && <p className="text-red-400 text-sm mt-1">{errors.latitude.message}</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1 ml-1">Longitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        {...register('longitude')}
+                                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
+                                        placeholder="-46.6333"
+                                    />
+                                    {errors.longitude && <p className="text-red-400 text-sm mt-1">{errors.longitude.message}</p>}
+                                </div>
                             </div>
                         </div>
+
 
                         <div className="pt-4 flex justify-end">
                             <button

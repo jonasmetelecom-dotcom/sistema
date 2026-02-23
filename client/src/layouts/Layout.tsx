@@ -65,7 +65,7 @@ const Layout = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 relative pb-20 md:pb-0 overflow-y-auto md:overflow-hidden flex flex-col">
+            <main className="flex-1 relative pb-20 md:pb-0 overflow-hidden flex flex-col">
                 <SubscriptionWarning />
                 <NotificationBell />
                 <UpdateBanner />

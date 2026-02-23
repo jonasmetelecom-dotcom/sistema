@@ -18,7 +18,7 @@ const BottomNav = () => {
     return (
         <>
             {/* Bottom Navigation Bar */}
-            <div className="fixed bottom-0 left-0 w-full bg-gray-950 border-t border-gray-800 flex justify-around items-center h-16 z-50 md:hidden pb-safe">
+            <div className="fixed bottom-0 left-0 w-full bg-gray-950/90 backdrop-blur-xl border-t border-white/5 flex justify-around items-center h-16 z-50 md:hidden pb-safe">
                 <NavLink
                     to="/projects"
                     className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-blue-500' : 'text-gray-400'}`}

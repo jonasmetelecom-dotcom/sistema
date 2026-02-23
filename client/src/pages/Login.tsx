@@ -17,10 +17,31 @@ const Login = () => {
         setError('');
         setLoading(true);
 
+        // Get or Generate Device ID (Virtual MAC)
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+            deviceId = crypto.randomUUID();
+            localStorage.setItem('deviceId', deviceId);
+        }
+
+        // Try to get location
+        let coords = { latitude: undefined as number | undefined, longitude: undefined as number | undefined };
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+            coords.latitude = position.coords.latitude;
+            coords.longitude = position.coords.longitude;
+        } catch (locationError) {
+            console.warn('Could not get login location:', locationError);
+        }
+
         try {
             const response = await api.post('/auth/login', {
                 email,
-                password
+                password,
+                deviceId,
+                ...coords
             });
 
             const { access_token, user } = response.data;
