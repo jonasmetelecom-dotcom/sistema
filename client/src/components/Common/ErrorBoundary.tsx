@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
@@ -17,7 +17,6 @@ class ErrorBoundary extends Component<Props, State> {
     };
 
     public static getDerivedStateFromError(error: Error): State {
-        // Update state so the next render will show the fallback UI.
         return { hasError: true, error };
     }
 
@@ -57,7 +56,7 @@ class ErrorBoundary extends Component<Props, State> {
                             </button>
                         </div>
 
-                        {process.env.NODE_ENV === 'development' && (
+                        {import.meta.env.DEV && (
                             <div className="mt-8 p-4 bg-black/40 rounded-lg text-left overflow-auto max-h-40">
                                 <p className="text-[10px] font-mono text-red-400 break-all">
                                     {this.state.error?.toString()}
@@ -69,7 +68,7 @@ class ErrorBoundary extends Component<Props, State> {
             );
         }
 
-        return this.children;
+        return this.props.children;
     }
 }
 

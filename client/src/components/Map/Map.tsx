@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, Fragment, useRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Zap, Box, Home, Radio, Search, ZoomIn, X } from 'lucide-react';
+import { Zap, Box, Home, Radio, Search, ZoomIn, X, AlertTriangle, RefreshCw } from 'lucide-react';
 import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle } from 'react-leaflet';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
