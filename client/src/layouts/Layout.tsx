@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import BottomNav from '../components/Layout/BottomNav';
 import { UpdateBanner } from '../components/Layout/UpdateBanner';
 import { NotificationBell } from '../components/Layout/NotificationBell';
+import { SubscriptionWarning } from '../components/Layout/SubscriptionWarning';
 
 const Layout = () => {
     const { user, logout } = useAuth();
@@ -65,6 +66,7 @@ const Layout = () => {
 
             {/* Main Content */}
             <main className="flex-1 relative pb-20 md:pb-0 overflow-y-auto md:overflow-hidden flex flex-col">
+                <SubscriptionWarning />
                 <NotificationBell />
                 <UpdateBanner />
                 <Outlet />
