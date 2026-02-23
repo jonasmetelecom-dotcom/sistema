@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, Camera } from 'lucide-react';
+import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, UserRound } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
 export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap' | 'streetview';
@@ -129,9 +129,9 @@ export const NetworkToolbar = ({
                 <ToolbarItem
                     active={activeTool === 'streetview'}
                     onClick={() => onToolChange('streetview')}
-                    icon={<Camera size={20} />}
+                    icon={<UserRound size={20} />}
                     label="Street"
-                    className="text-yellow-500"
+                    className="text-orange-500"
                 />
                 <ToolbarItem
                     active={false}
