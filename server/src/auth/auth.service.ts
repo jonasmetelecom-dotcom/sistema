@@ -34,6 +34,14 @@ export class AuthService {
         throw new UnauthorizedException('Seu cadastro está aguardando aprovação do administrador.');
       }
 
+      // Check for subscription expiration (ignore for Free plan or super_admin)
+      if (user.role !== 'super_admin' && user.tenant?.plan !== 'free') {
+        const now = new Date();
+        if (user.tenant?.subscriptionEndsAt && new Date(user.tenant.subscriptionEndsAt) < now) {
+          throw new UnauthorizedException('Sua assinatura expirou. Entre em contato com o suporte.');
+        }
+      }
+
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -107,5 +115,51 @@ export class AuthService {
       message: 'Cadastro realizado com sucesso! Aguarde a aprovação do administrador para acessar o sistema.',
       pendingApproval: true
     };
+  }
+
+  async registerManual(registerDto: RegisterDto) {
+    // Manual registration creates an ACTIVE tenant immediately
+    const existingUser = await this.usersService.findByEmail(registerDto.email);
+    if (existingUser) {
+      throw new ConflictException('O e-mail já está em uso.');
+    }
+
+    // Generate unique slug
+    let slug = registerDto.companyName.toLowerCase().trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    let baseSlug = slug;
+    let counter = 2;
+    while (await this.tenantRepository.findOne({ where: { slug } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    // Create Tenant (ACTIVE by default for manual creation)
+    const tenant = this.tenantRepository.create({
+      slug: slug,
+      name: registerDto.companyName,
+      plan: 'pro', // Default to Pro for manual
+      isActive: true,
+      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+    });
+    const savedTenant = await this.tenantRepository.save(tenant);
+
+    // Hash Password
+    const salt = await bcrypt.genSalt();
+    const hash = await bcrypt.hash(registerDto.password, salt);
+
+    // Create User
+    await this.usersService.create({
+      name: registerDto.name,
+      email: registerDto.email,
+      passwordHash: hash,
+      tenantId: savedTenant.id,
+      role: 'admin',
+    });
+
+    return { message: 'Empresa criada com sucesso!', tenantId: savedTenant.id };
   }
 }
