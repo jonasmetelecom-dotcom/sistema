@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, Fragment, useRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Zap, Box, Home, Radio, X, Camera, ExternalLink } from 'lucide-react';
+import { Zap, Box, Home, Radio, X } from 'lucide-react';
 import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle } from 'react-leaflet';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -117,11 +117,12 @@ const MapResizer = () => {
 
 const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
     const isCTO = type === 'cto' || type === 'termination' || name?.toUpperCase().includes('CTO');
-    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : '#3b82f6'); // Red if full, Emerald for CTO, Blue for CEO
+    const isCEO = type === 'ceo' || type === 'splice_closure' || name?.toUpperCase().includes('CEO') || name?.toUpperCase().includes('EMENDA');
+    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : '#94a3b8')); // Red if full, Emerald for CTO, Blue for CEO, Gray for others
     const shape = isCTO ? 'square' : 'diamond';
 
     return divIcon({
-        className: 'custom-box-icon',
+        className: 'custom-box-icon cursor-grab active:cursor-grabbing',
         html: `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 0 5px ${isFull ? 'rgba(239,68,68,0.5)' : 'rgba(0,0,0,0.3)'}; transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};"></div>`,
         iconSize: [14, 14],
         iconAnchor: [7, 7]
@@ -131,7 +132,7 @@ const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
 const getOnuIcon = (status: string) => {
     const color = status === 'planned' ? '#22d3ee' : status === 'online' ? '#10b981' : '#94a3b8';
     return divIcon({
-        className: 'custom-onu-icon',
+        className: 'custom-onu-icon cursor-grab active:cursor-grabbing',
         html: `<div style="background-color: ${color}; width: 12px; height: 12px; border: 2px solid white; border-radius: 2px; box-shadow: 0 0 5px rgba(0,0,0,0.3);"></div>`,
         iconSize: [12, 12],
         iconAnchor: [6, 6]
@@ -141,7 +142,7 @@ const getOnuIcon = (status: string) => {
 const getRadioIcon = (status: string) => {
     const color = status === 'online' ? '#a855f7' : '#94a3b8'; // Purple for Radio
     return divIcon({
-        className: 'custom-radio-icon',
+        className: 'custom-radio-icon cursor-grab active:cursor-grabbing',
         html: `<div style="background-color: ${color}; width: 18px; height: 18px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(168,85,247,0.5); display: flex; align-items: center; justify-content: center; color: white;">
                 <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"></path><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"></path><circle cx="12" cy="12" r="2"></circle><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"></path><path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1"></path></svg>
                </div>`,
@@ -150,7 +151,7 @@ const getRadioIcon = (status: string) => {
     });
 };
 
-const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCableStart, elements, cableSettings, boxSettings, setRulerPoints, setStreetViewLocation, setPendingBoxAt }: any) => {
+const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCableStart, elements, cableSettings, boxSettings, setRulerPoints, setPendingBoxAt }: any) => {
     const map = useMap();
 
     useMapEvents({
@@ -252,8 +253,6 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
                         setCableStart(null);
                     }
                 }
-            } else if (activeTool === 'streetview') {
-                setStreetViewLocation(finalLatLng);
             } else if (activeTool === 'customer') {
                 try {
                     // 1. Create the ONU (Customer)
@@ -367,7 +366,6 @@ const Map = () => {
 
     const [showCoverage, setShowCoverage] = useState(false);
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
-    const [streetViewLocation, setStreetViewLocation] = useState<LatLng | null>(null);
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
     const [loading, setLoading] = useState(false);
@@ -553,7 +551,6 @@ const Map = () => {
         setCableStart(null);
         setTracedPath([]); // Reset trace when tool changes
         setRulerPoints([]); // Reset ruler when tool changes
-        if (activeTool !== 'streetview') setStreetViewLocation(null);
     }, [activeTool]);
 
     const handleTrace = async (elementId: string, fiberIndex: number) => {
@@ -578,7 +575,7 @@ const Map = () => {
 
     // Icons
     const createIcon = (color: string, shape: 'circle' | 'square' = 'circle') => divIcon({
-        className: 'custom-icon',
+        className: 'custom-icon cursor-grab active:cursor-grabbing',
         html: `<div style="
             background-color: ${color}; 
             width: ${shape === 'circle' ? '12px' : '14px'}; 
@@ -972,7 +969,6 @@ const Map = () => {
                         cableSettings={cableSettings}
                         boxSettings={boxSettings}
                         setRulerPoints={setRulerPoints}
-                        setStreetViewLocation={setStreetViewLocation}
                         setPendingBoxAt={setPendingBoxAt}
                     />
 
@@ -1504,43 +1500,7 @@ const Map = () => {
                 </MapContainer>
             </div>
 
-            {/* Street View Panel */}
-            {streetViewLocation && (
-                <div className="absolute bottom-4 right-4 z-[1500] w-[350px] sm:w-[500px] h-[250px] sm:h-[350px] bg-gray-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto">
-                    <div className="absolute top-2 right-2 z-10 flex gap-2">
-                        <a
-                            href={`https://www.google.com/maps?q=&layer=c&cbll=${streetViewLocation.lat},${streetViewLocation.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-lg flex items-center gap-1 text-[10px] font-bold uppercase transition-colors"
-                        >
-                            <ExternalLink size={14} /> Abrir Full
-                        </a>
-                        <button
-                            onClick={() => setStreetViewLocation(null)}
-                            className="p-1.5 bg-gray-800/80 hover:bg-red-600 text-white rounded-lg shadow-lg transition-colors"
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                    <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-                        <iframe
-                            width="100%"
-                            height="100%"
-                            frameBorder="0"
-                            style={{ border: 0 }}
-                            src={`https://www.google.com/maps/embed/v1/streetview?key=YOUR_API_KEY_HERE&location=${streetViewLocation.lat},${streetViewLocation.lng}&heading=210&pitch=10&fov=80`}
-                            allowFullScreen
-                        ></iframe>
-                        {/* Overlay message if API Key is missing or embed fails */}
-                        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center pointer-events-none opacity-40 select-none">
-                            <Camera size={48} className="mx-auto mb-2" />
-                            <p className="text-xs">Google Street View</p>
-                            <p className="text-[10px]">Aguardando conexão ou chave de API</p>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Undo Toast */}
             {

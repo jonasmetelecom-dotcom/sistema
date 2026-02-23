@@ -327,9 +327,29 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                                     <div className="p-4 space-y-6">
                                         {data?.incomingCables?.map(cable => (
                                             <div key={cable.id} className="bg-gray-800/40 rounded-lg border border-gray-700 overflow-hidden">
-                                                <div className="px-3 py-2 bg-gray-800 border-b border-gray-700 flex justify-between">
+                                                <div className="px-3 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
                                                     <span className="text-xs font-mono text-gray-300">Cabo {cable.id.slice(0, 4)}</span>
-                                                    <span className="text-xs text-blue-400">{cable.fiberCount}FO</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await api.patch(`/network-elements/cables/${cable.id}`, { fiberCount: Math.max(1, (cable.fiberCount || 1) - 1) });
+                                                                    fetchData();
+                                                                } catch (err) { console.error(err); }
+                                                            }}
+                                                            className="w-5 h-5 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs shadow"
+                                                        >-</button>
+                                                        <span className="text-xs text-blue-400 font-bold">{cable.fiberCount}FO</span>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await api.patch(`/network-elements/cables/${cable.id}`, { fiberCount: (cable.fiberCount || 0) + 1 });
+                                                                    fetchData();
+                                                                } catch (err) { console.error(err); }
+                                                            }}
+                                                            className="w-5 h-5 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs shadow"
+                                                        >+</button>
+                                                    </div>
                                                 </div>
                                                 <div className="p-2 space-y-1">
                                                     {Array.from({ length: cable.fiberCount }).map((_, i) => {
@@ -633,9 +653,29 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                                     <div className="p-4 space-y-6">
                                         {data?.outgoingCables?.map(cable => (
                                             <div key={cable.id} className="bg-gray-800/40 rounded-lg border border-gray-700 overflow-hidden">
-                                                <div className="px-3 py-2 bg-gray-800 border-b border-gray-700 flex justify-between">
+                                                <div className="px-3 py-2 bg-gray-800 border-b border-gray-700 flex justify-between items-center">
                                                     <span className="text-xs font-mono text-gray-300">Cabo {cable.id.slice(0, 4)}</span>
-                                                    <span className="text-xs text-emerald-400">{cable.fiberCount}FO</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await api.patch(`/network-elements/cables/${cable.id}`, { fiberCount: Math.max(1, (cable.fiberCount || 1) - 1) });
+                                                                    fetchData();
+                                                                } catch (err) { console.error(err); }
+                                                            }}
+                                                            className="w-5 h-5 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs shadow"
+                                                        >-</button>
+                                                        <span className="text-xs text-emerald-400 font-bold">{cable.fiberCount}FO</span>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await api.patch(`/network-elements/cables/${cable.id}`, { fiberCount: (cable.fiberCount || 0) + 1 });
+                                                                    fetchData();
+                                                                } catch (err) { console.error(err); }
+                                                            }}
+                                                            className="w-5 h-5 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-xs shadow"
+                                                        >+</button>
+                                                    </div>
                                                 </div>
                                                 <div className="p-2 space-y-1">
                                                     {Array.from({ length: cable.fiberCount }).map((_, i) => {

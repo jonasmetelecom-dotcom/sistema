@@ -142,16 +142,16 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                             {elementType === 'box' && (
                                 <>
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Type</label>
+                                        <label className="text-xs text-gray-400">Tipo de Caixa</label>
                                         <select
                                             name="type"
                                             value={formData.type || 'cto'}
                                             onChange={handleChange}
                                             className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
                                         >
-                                            <option value="cto">CTO</option>
-                                            <option value="ceo">CEO</option>
-                                            <option value="splice">Emenda</option>
+                                            <option value="cto">CAIXA CTO (Atendimento)</option>
+                                            <option value="ceo">CAIXA CEO (Emenda)</option>
+                                            <option value="splice">RESERVA/OUTROS</option>
                                         </select>
                                     </div>
                                     <div className="flex flex-col gap-1">
@@ -370,14 +370,45 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                     </div>
 
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Cores (Separadas por vírgula)</label>
+                                        <label className="text-xs text-gray-400">Cores das Fibras</label>
+                                        <div className="grid grid-cols-6 gap-2 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
+                                            {[
+                                                { name: 'Azul', color: '#3b82f6' },
+                                                { name: 'Laranja', color: '#f97316' },
+                                                { name: 'Verde', color: '#22c55e' },
+                                                { name: 'Marrom', color: '#78350f' },
+                                                { name: 'Cinza', color: '#64748b' },
+                                                { name: 'Branco', color: '#f8fafc' },
+                                                { name: 'Vermelho', color: '#ef4444' },
+                                                { name: 'Preto', color: '#000000' },
+                                                { name: 'Amarelo', color: '#eab308' },
+                                                { name: 'Violeta', color: '#a855f7' },
+                                                { name: 'Rosa', color: '#ec4899' },
+                                                { name: 'Aqua', color: '#06b6d4' }
+                                            ].map((c) => (
+                                                <button
+                                                    key={c.name}
+                                                    title={c.name}
+                                                    onClick={() => {
+                                                        const currentColors = formData.colors ? formData.colors.split(',').map((s: string) => s.trim()) : [];
+                                                        if (currentColors.includes(c.name)) {
+                                                            setFormData((prev: any) => ({ ...prev, colors: currentColors.filter((s: string) => s !== c.name).join(', ') }));
+                                                        } else {
+                                                            setFormData((prev: any) => ({ ...prev, colors: [...currentColors, c.name].join(', ') }));
+                                                        }
+                                                    }}
+                                                    className={`w-full aspect-square rounded-md border-2 transition-all ${formData.colors?.includes(c.name) ? 'border-white scale-110 shadow-lg' : 'border-transparent hover:border-gray-500'}`}
+                                                    style={{ backgroundColor: c.color }}
+                                                />
+                                            ))}
+                                        </div>
                                         <input
                                             type="text"
                                             name="colors"
                                             value={formData.colors || ''}
                                             onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                            placeholder="Azul, Verde, Amarelo..."
+                                            className="mt-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs focus:border-blue-500 outline-none"
+                                            placeholder="Cores selecionadas..."
                                         />
                                     </div>
 

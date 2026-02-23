@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, UserRound } from 'lucide-react';
+import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
-export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap' | 'streetview';
+export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap';
 
 interface ToolbarItemProps {
     active: boolean;
@@ -125,13 +125,6 @@ export const NetworkToolbar = ({
                     icon={<PieChart size={20} />}
                     label="Dashboard"
                     className="text-cyan-400"
-                />
-                <ToolbarItem
-                    active={activeTool === 'streetview'}
-                    onClick={() => onToolChange('streetview')}
-                    icon={<UserRound size={20} />}
-                    label="Street"
-                    className="text-orange-500"
                 />
                 <ToolbarItem
                     active={false}
