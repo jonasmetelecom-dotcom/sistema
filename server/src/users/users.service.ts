@@ -10,7 +10,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   async create(userData: any): Promise<User> {
     if (userData.password) {
@@ -30,19 +30,11 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { email },
-      select: [
-        'id',
-        'name',
-        'email',
-        'passwordHash',
-        'role',
-        'tenantId',
-        'tenant',
-      ], // Explicitly select passwordHash
-      relations: ['tenant'],
-    });
+    return this.userRepository.createQueryBuilder('user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .where('user.email = :email', { email })
+      .addSelect('user.passwordHash')
+      .getOne();
   }
 
   async findOne(id: string): Promise<User | null> {
