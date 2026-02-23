@@ -69,6 +69,24 @@ export class Cable {
   @Column({ type: 'float', default: 0 })
   slack: number;
 
+  @Column({ nullable: true })
+  status: string; // deployed, planned
+
+  @Column({ default: 1 })
+  looses: number;
+
+  @Column({ nullable: true })
+  observations: string;
+
+  @Column({ type: 'simple-json', nullable: true })
+  poleIds: string[]; // Track intermediate poles
+
+  @Column({ default: 0 })
+  occupation: number;
+
+  @Column({ type: 'simple-json', nullable: true })
+  reserves: { poleId: string; length: number }[]; // Technical reserves per pole
+
   @DeleteDateColumn()
   deletedAt: Date;
 }

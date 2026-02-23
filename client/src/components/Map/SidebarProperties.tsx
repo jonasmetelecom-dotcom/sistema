@@ -159,16 +159,46 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                             {elementType === 'pole' && (
                                 <div className="flex flex-col gap-1">
                                     <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Material</label>
-                                    <select
-                                        name="material"
-                                        value={formData.material || 'concrete'}
-                                        onChange={handleChange}
-                                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
-                                    >
-                                        <option value="concrete">Concreto</option>
-                                        <option value="wood">Madeira</option>
-                                        <option value="metal">Metal</option>
-                                    </select>
+                                    <div className="flex gap-2">
+                                        <select
+                                            name="material"
+                                            value={formData.material || 'concrete'}
+                                            onChange={handleChange}
+                                            className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                        >
+                                            <option value="concrete">Concreto</option>
+                                            <option value="wood">Madeira</option>
+                                            <option value="metal">Metal</option>
+                                        </select>
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('Deseja converter este poste em uma Caixa CTO?')) return;
+                                                try {
+                                                    setLoading(true);
+                                                    // 1. Delete pole
+                                                    await api.delete(`/network-elements/poles/${element.id}`);
+                                                    // 2. Create box at same position
+                                                    await api.post('/network-elements/boxes', {
+                                                        projectId: element.projectId,
+                                                        latitude: element.latitude,
+                                                        longitude: element.longitude,
+                                                        type: 'cto',
+                                                        name: 'CTO-NEW'
+                                                    });
+                                                    onUpdate();
+                                                    onClose();
+                                                } catch (err) {
+                                                    alert('Erro ao converter elemento');
+                                                } finally {
+                                                    setLoading(false);
+                                                }
+                                            }}
+                                            className="px-3 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 rounded border border-emerald-600/30 text-[10px] font-bold transition-colors"
+                                            title="Converter para Caixa"
+                                        >
+                                            CONVERTER
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -181,11 +211,11 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                             value={formData.type || 'cto'}
                                             onChange={(e) => {
                                                 const newType = e.target.value;
-                                                const defaultName = newType === 'cto' ? 'CTO-' : newType === 'ceo' ? 'CEO-' : 'CX-';
+                                                const defaultName = newType === 'cto' ? 'CTO-' : newType === 'ceo' ? 'CEO-' : newType === 'splitter' ? 'SPL-' : 'CX-';
                                                 setFormData((prev: any) => ({
                                                     ...prev,
                                                     type: newType,
-                                                    name: prev.name && (prev.name.startsWith('CTO-') || prev.name.startsWith('CEO-') || prev.name.startsWith('CX-'))
+                                                    name: prev.name && (prev.name.startsWith('CTO-') || prev.name.startsWith('CEO-') || prev.name.startsWith('SPL-') || prev.name.startsWith('CX-'))
                                                         ? defaultName + prev.name.split('-')[1]
                                                         : prev.name || defaultName
                                                 }));
@@ -194,7 +224,9 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                         >
                                             <option value="cto">CTO (Atendimento)</option>
                                             <option value="ceo">CEO (Emenda)</option>
-                                            <option value="splice">CAIXA DE PASSAGEM/OUTROS</option>
+                                            <option value="splitter">Splitter (Divisão)</option>
+                                            <option value="termination">Caixa de Terminação</option>
+                                            <option value="junction">Caixa de Passagem/Outros</option>
                                         </select>
                                     </div>
 
@@ -367,6 +399,46 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
 
                             {elementType === 'cable' && (
                                 <div className="flex flex-col gap-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tubos (Looses)</label>
+                                            <input
+                                                type="number"
+                                                name="looses"
+                                                value={formData.looses || 1}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Ocupação (Fibras)</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    name="occupation"
+                                                    value={formData.occupation || 0}
+                                                    onChange={handleChange}
+                                                    max={formData.fiberCount || 120}
+                                                    className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                                />
+                                                <span className="text-xs text-gray-500 font-mono">
+                                                    / {formData.fiberCount || 1} FO
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Observações</label>
+                                        <textarea
+                                            name="observations"
+                                            value={formData.observations || ''}
+                                            onChange={(e: any) => setFormData((prev: any) => ({ ...prev, observations: e.target.value }))}
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-xs focus:border-blue-500 outline-none min-h-[60px] resize-none"
+                                            placeholder="Notas adicionais..."
+                                        />
+                                    </div>
+
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tipo de Cabo</label>
                                         <select
@@ -407,6 +479,55 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                                 className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
                                                 placeholder="Reserva, etc"
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1 mt-2">
+                                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-1 mb-2">Infraestruturas e Reservas</h4>
+                                        <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                            {/* Start Point */}
+                                            <div className="flex items-center justify-between bg-gray-900/40 p-1.5 rounded border border-gray-800/50">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[9px] text-gray-500 uppercase font-bold">Início ({formData.fromType})</span>
+                                                    <span className="text-[10px] text-white truncate">{formData.fromId?.slice(0, 8)}</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
+                                                    placeholder="0m"
+                                                    title="Reserva Inicial"
+                                                />
+                                            </div>
+
+                                            {/* Intermediate Poles */}
+                                            {(formData.poleIds || []).map((pId: string, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between bg-gray-800/30 p-1.5 rounded border border-gray-800/30">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-[9px] text-blue-500/70 uppercase font-bold">Poste {idx + 1}</span>
+                                                        <span className="text-[10px] text-gray-300 truncate">{pId.slice(0, 8)}</span>
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
+                                                        placeholder="0m"
+                                                        title={`Reserva no Poste ${idx + 1}`}
+                                                    />
+                                                </div>
+                                            ))}
+
+                                            {/* End Point */}
+                                            <div className="flex items-center justify-between bg-gray-900/40 p-1.5 rounded border border-gray-800/50">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[9px] text-gray-500 uppercase font-bold">Fim ({formData.toType})</span>
+                                                    <span className="text-[10px] text-white truncate">{formData.toId?.slice(0, 8)}</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
+                                                    placeholder="0m"
+                                                    title="Reserva Final"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 

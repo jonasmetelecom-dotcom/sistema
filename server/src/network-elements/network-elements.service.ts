@@ -126,7 +126,7 @@ export class NetworkElementsService {
   }
 
   async updateCable(id: string, data: Partial<Cable>) {
-    const { id: _, type: __, ...updateData } = data as any;
+    const { id: _, ...updateData } = data as any;
     await this.cablesRepository.update(id, updateData);
     return this.cablesRepository.findOne({ where: { id } });
   }

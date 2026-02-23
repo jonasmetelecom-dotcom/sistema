@@ -19,7 +19,7 @@ export class InfrastructureBox {
   name: string;
 
   @Column({ default: 'cto' })
-  type: string; // cto, ceo, splice_closure
+  type: string; // cto, ceo, splice_closure, splitter
 
   @Column({ default: 16 })
   capacity: number;

@@ -118,8 +118,11 @@ const MapResizer = () => {
 const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
     const isCTO = type === 'cto' || type === 'termination' || name?.toUpperCase().includes('CTO');
     const isCEO = type === 'ceo' || type === 'splice_closure' || name?.toUpperCase().includes('CEO') || name?.toUpperCase().includes('EMENDA');
-    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : '#94a3b8'));
-    const shape = isCTO ? 'square' : 'diamond';
+    const isSplitter = type === 'splitter' || name?.toUpperCase().includes('SPLITTER') || name?.toUpperCase().includes('SPL');
+
+    // Emerald for CTO, Blue for CEO, Orange for Splitter, Gray for others
+    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : (isSplitter ? '#f59e0b' : '#94a3b8')));
+    const shape = isCTO ? 'square' : (isSplitter ? 'circle' : 'diamond');
 
     return divIcon({
         className: 'custom-box-icon cursor-grab active:cursor-grabbing',
@@ -128,9 +131,9 @@ const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
             width: 14px; 
             height: 14px; 
             border: 2px solid white; 
-            box-shadow: 0 0 10px ${isFull ? 'rgba(239,68,68,0.6)' : isCTO ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.4)'}; 
+            box-shadow: 0 0 10px ${isFull ? 'rgba(239,68,68,0.6)' : isCTO ? 'rgba(16,185,129,0.4)' : isSplitter ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.4)'}; 
             transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};
-            border-radius: ${shape === 'square' ? '2px' : '0'};
+            border-radius: ${shape === 'square' ? '2px' : shape === 'circle' ? '50%' : '0'};
             transition: all 0.2s ease-in-out;
         "></div>`,
         iconSize: [14, 14],
@@ -217,60 +220,47 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
                     alert('Erro ao criar caixa');
                 }
             } else if (activeTool === 'cable') {
-                // If we clicked on empty map with cable tool
                 if (!cableStart) {
-                    // Start cable
-                    // If snapped, good. If not, start at map point.
                     setCableStart({
                         latlng: finalLatLng,
                         elementId: snapped.id,
-                        elementType: snapped.type
+                        elementType: snapped.type,
+                        path: [finalLatLng],
+                        poles: snapped.type === 'pole' && snapped.id ? [snapped.id] : []
                     });
                 } else {
-                    // End cable (Add point/segment)
-                    try {
-                        const points = [
-                            { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
-                            { lat: finalLatLng.lat, lng: finalLatLng.lng }
-                        ];
+                    const newPath = [...cableStart.path, finalLatLng];
+                    const newPoles = snapped.type === 'pole' && snapped.id ? [...cableStart.poles, snapped.id] : cableStart.poles;
 
-                        const fromId = cableStart.elementId;
-                        const fromType = cableStart.elementType;
-                        const toId = snapped.id;
-                        const toType = snapped.type;
-
-                        // MANDATORY BOX: If not snapped to an element, require box creation
-                        if (!toId) {
-                            setPendingBoxAt(finalLatLng);
-                            return;
-                        }
-
-                        // Create cable with selected Settings
-                        await api.post('/network-elements/cables', {
-                            projectId,
-                            type: cableSettings.type,
-                            fiberCount: cableSettings.fiberCount,
-                            points,
-                            fromId,
-                            fromType,
-                            toId,
-                            toType
-                        });
-
-                        // Continuous drawing
-                        setCableStart({
-                            latlng: finalLatLng,
-                            elementId: toId,
-                            elementType: toType
-                        });
-
-                        onElementCreated();
-                    } catch (error) {
-                        console.error('Error creating cable:', error);
-                        setCableStart(null);
+                    if (!snapped.id) {
+                        setPendingBoxAt(finalLatLng);
+                        return;
                     }
+
+                    // End or continue cable
+                    await api.post('/network-elements/cables', {
+                        projectId,
+                        type: cableSettings.type,
+                        fiberCount: cableSettings.fiberCount,
+                        points: newPath,
+                        fromId: cableStart.elementId,
+                        fromType: cableStart.elementType,
+                        toId: snapped.id,
+                        toType: snapped.type,
+                        poleIds: newPoles
+                    });
+
+                    setCableStart({
+                        latlng: finalLatLng,
+                        elementId: snapped.id,
+                        elementType: snapped.type,
+                        path: [finalLatLng],
+                        poles: []
+                    });
+                    onElementCreated();
                 }
-            } else if (activeTool === 'customer') {
+            }
+            else if (activeTool === 'customer') {
                 try {
                     // 1. Create the ONU (Customer)
                     const onuResponse = await api.post('/network-elements/onus', {
@@ -371,7 +361,7 @@ const Map = () => {
 
     const [elements, setElements] = useState<{ poles: any[], boxes: any[], cables: any[], onus: any[], rbs: any[], ctoCustomers: any[] }>({ poles: [], boxes: [], cables: [], onus: [], rbs: [], ctoCustomers: [] });
     // Updated state for cable start to include element info
-    const [cableStart, setCableStart] = useState<{ latlng: LatLng, elementId?: string, elementType?: string } | null>(null);
+    const [cableStart, setCableStart] = useState<{ latlng: LatLng, elementId?: string, elementType?: string, path: any[], poles: string[] } | null>(null);
     const [selectedElement, setSelectedElement] = useState<{ id: string, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs', [key: string]: any } | null>(null);
     const [viewingBoxId, setViewingBoxId] = useState<string | null>(null);
     const [isImportExportOpen, setIsImportExportOpen] = useState(false);
@@ -656,36 +646,65 @@ const Map = () => {
 
             if (!cableStart) {
                 // Start cable from this element
-                setCableStart({ latlng, elementId: element.id, elementType: type });
+                setCableStart({
+                    latlng,
+                    elementId: element.id,
+                    elementType: type,
+                    path: [latlng],
+                    poles: []
+                });
             } else {
-                // Finish cable at this element AND START NEXT SEGMENT
-                if (cableStart.elementId === element.id) {
-                    console.warn('Cannot connect cable to itself (Self-Loop detected)');
+                if (cableStart.elementId === element.id && cableStart.path.length === 1) {
+                    console.warn('Cannot connect cable to itself');
                     return;
                 }
 
-                try {
-                    await api.post('/network-elements/cables', {
-                        projectId,
-                        type: cableSettings.type,
-                        fiberCount: cableSettings.fiberCount,
-                        points: [
-                            { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
-                            { lat: latlng.lat, lng: latlng.lng }
-                        ],
-                        fromId: cableStart.elementId,
-                        fromType: cableStart.elementType,
-                        toId: element.id,
-                        toType: type
+                const newPath = [...cableStart.path, latlng];
+                const newPoles = type === 'pole' ? [...(cableStart.poles || []), element.id] : (cableStart.poles || []);
+
+                // If we click a BOX, we MANDATORY FINISH. 
+                // If we click a POLE, we can either finish OR continue. 
+                // For now, let's allow finishing on any element but if it's a pole we can extend it.
+                // Professional OZMap style: boxes are terminations, poles are pass-through.
+
+                const isTermination = type === 'box' || type === 'onu' || type === 'rbs';
+
+                if (isTermination) {
+                    try {
+                        await api.post('/network-elements/cables', {
+                            projectId,
+                            type: cableSettings.type,
+                            fiberCount: cableSettings.fiberCount,
+                            points: newPath,
+                            fromId: cableStart.elementId,
+                            fromType: cableStart.elementType,
+                            toId: element.id,
+                            toType: type,
+                            poleIds: newPoles
+                        });
+
+                        // After box, we can start a new cable from this box
+                        setCableStart({
+                            latlng,
+                            elementId: element.id,
+                            elementType: type,
+                            path: [latlng],
+                            poles: []
+                        });
+                        fetchElements();
+                    } catch (error) {
+                        console.error('Error creating cable:', error);
+                        setCableStart(null);
+                    }
+                } else {
+                    // It's a pole. We add it to the path and wait for next click.
+                    setCableStart({
+                        ...cableStart,
+                        latlng, // Current end point
+                        path: newPath,
+                        poles: newPoles
                     });
-
-                    // CONTINUOUS MODE: Set the start of the next cable to be the end of this one
-                    setCableStart({ latlng, elementId: element.id, elementType: type });
-
-                    fetchElements();
-                } catch (error) {
-                    console.error('Error creating connected cable:', error);
-                    setCableStart(null);
+                    // Visual feedback: element snapped
                 }
             }
         }
@@ -706,32 +725,34 @@ const Map = () => {
                 latitude: pendingBoxAt.lat,
                 longitude: pendingBoxAt.lng,
                 type: isCTO ? 'cto' : 'ceo',
-                capacity: isCTO ? 16 : 0, // CEO can have 0 capacity for fusions only
+                capacity: isCTO ? 16 : 0,
                 name: defaultName
             });
 
             const newBox = boxResponse.data;
 
-            // 2. Create Cable
+            // 2. Create Cable with full path
+            const newPath = [...cableStart.path, pendingBoxAt];
+
             await api.post('/network-elements/cables', {
                 projectId,
                 type: cableSettings.type,
                 fiberCount: cableSettings.fiberCount,
-                points: [
-                    { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
-                    { lat: pendingBoxAt.lat, lng: pendingBoxAt.lng }
-                ],
+                points: newPath,
                 fromId: cableStart.elementId,
                 fromType: cableStart.elementType,
                 toId: newBox.id,
-                toType: 'box'
+                toType: 'box',
+                poleIds: cableStart.poles
             });
 
             // 3. Update continuous drawing
             setCableStart({
                 latlng: pendingBoxAt,
                 elementId: newBox.id,
-                elementType: 'box'
+                elementType: 'box',
+                path: [pendingBoxAt],
+                poles: []
             });
 
             setPendingBoxAt(null);
