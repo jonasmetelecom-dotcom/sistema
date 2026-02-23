@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Project } from '../../projects/entities/project.entity';
 
 @Entity()
@@ -77,9 +77,15 @@ export class Rbs {
   @Column({ nullable: true })
   maintenanceUntil: Date;
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
   @Column({ nullable: true })
   tenantId: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
 }

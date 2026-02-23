@@ -67,6 +67,7 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
 
             await api.patch(`/network-elements/${endpoint}/${element.id}`, formData);
             onUpdate();
+            onClose(); // Close sidebar after saving
         } catch (error) {
             console.error('Error updating element:', error);
             alert('Erro ao salvar');
@@ -558,6 +559,13 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                 >
                     <Save size={16} />
                     Salvar
+                </button>
+                <button
+                    onClick={onClose}
+                    className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                >
+                    <X size={16} />
+                    Fechar
                 </button>
                 <button
                     onClick={() => {

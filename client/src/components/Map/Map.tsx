@@ -1165,9 +1165,30 @@ const Map = () => {
                                 key={pole.id}
                                 position={[pole.latitude, pole.longitude]}
                                 icon={createIcon('#3b82f6', 'circle')}
+                                draggable={true}
                                 eventHandlers={{
                                     click: (e) => handleElementClick(e, pole, 'pole'),
-                                    contextmenu: (e) => handleElementClick(e, pole, 'pole')
+                                    contextmenu: (e) => handleElementClick(e, pole, 'pole'),
+                                    dragend: async (e) => {
+                                        const marker = e.target;
+                                        const newLatLng = marker.getLatLng();
+
+                                        // Update local state
+                                        const updatedPoles = elements.poles.map(p =>
+                                            p.id === pole.id ? { ...p, latitude: newLatLng.lat, longitude: newLatLng.lng } : p
+                                        );
+                                        setElements({ ...elements, poles: updatedPoles });
+
+                                        // Persist to backend
+                                        try {
+                                            await api.patch(`/network-elements/poles/${pole.id}`, {
+                                                latitude: newLatLng.lat,
+                                                longitude: newLatLng.lng
+                                            });
+                                        } catch (error) {
+                                            console.error('Error moving pole:', error);
+                                        }
+                                    }
                                 }}
                             >
                                 <Popup>Poste ID: {pole.id.slice(0, 8)}</Popup>
@@ -1203,9 +1224,30 @@ const Map = () => {
                                         const isFull = isCTO && customers.length >= (box.capacity || 16);
                                         return getBoxIcon(box.type, box.name, isFull);
                                     })()}
+                                    draggable={true}
                                     eventHandlers={{
                                         click: (e) => handleElementClick(e, box, 'box'),
-                                        contextmenu: (e) => handleElementClick(e, box, 'box')
+                                        contextmenu: (e) => handleElementClick(e, box, 'box'),
+                                        dragend: async (e) => {
+                                            const marker = e.target;
+                                            const newLatLng = marker.getLatLng();
+
+                                            // Update local state
+                                            const updatedBoxes = elements.boxes.map(b =>
+                                                b.id === box.id ? { ...b, latitude: newLatLng.lat, longitude: newLatLng.lng } : b
+                                            );
+                                            setElements({ ...elements, boxes: updatedBoxes });
+
+                                            // Persist to backend
+                                            try {
+                                                await api.patch(`/network-elements/boxes/${box.id}`, {
+                                                    latitude: newLatLng.lat,
+                                                    longitude: newLatLng.lng
+                                                });
+                                            } catch (error) {
+                                                console.error('Error moving box:', error);
+                                            }
+                                        }
                                     }}
                                 >
                                     <Popup>
@@ -1234,9 +1276,30 @@ const Map = () => {
                                 <Marker
                                     position={[rbs.latitude, rbs.longitude]}
                                     icon={getRadioIcon(rbs.status)}
+                                    draggable={true}
                                     eventHandlers={{
                                         click: (e) => handleElementClick(e, rbs, 'rbs'),
-                                        contextmenu: (e) => handleElementClick(e, rbs, 'rbs')
+                                        contextmenu: (e) => handleElementClick(e, rbs, 'rbs'),
+                                        dragend: async (e) => {
+                                            const marker = e.target;
+                                            const newLatLng = marker.getLatLng();
+
+                                            // Update local state
+                                            const updatedRbs = elements.rbs.map(r =>
+                                                r.id === rbs.id ? { ...r, latitude: newLatLng.lat, longitude: newLatLng.lng } : r
+                                            );
+                                            setElements({ ...elements, rbs: updatedRbs });
+
+                                            // Persist to backend
+                                            try {
+                                                await api.patch(`/network-elements/rbs/${rbs.id}`, {
+                                                    latitude: newLatLng.lat,
+                                                    longitude: newLatLng.lng
+                                                });
+                                            } catch (error) {
+                                                console.error('Error moving RBS:', error);
+                                            }
+                                        }
                                     }}
                                 >
                                     <Popup>
@@ -1262,9 +1325,30 @@ const Map = () => {
                                 key={onu.id}
                                 position={[onu.latitude, onu.longitude]}
                                 icon={getOnuIcon(onu.status)}
+                                draggable={true}
                                 eventHandlers={{
                                     click: (e) => handleElementClick(e, onu, 'onu'),
-                                    contextmenu: (e) => handleElementClick(e, onu, 'onu')
+                                    contextmenu: (e) => handleElementClick(e, onu, 'onu'),
+                                    dragend: async (e) => {
+                                        const marker = e.target;
+                                        const newLatLng = marker.getLatLng();
+
+                                        // Update local state
+                                        const updatedOnus = elements.onus.map(o =>
+                                            o.id === onu.id ? { ...o, latitude: newLatLng.lat, longitude: newLatLng.lng } : o
+                                        );
+                                        setElements({ ...elements, onus: updatedOnus });
+
+                                        // Persist to backend
+                                        try {
+                                            await api.patch(`/network-elements/onus/${onu.id}`, {
+                                                latitude: newLatLng.lat,
+                                                longitude: newLatLng.lng
+                                            });
+                                        } catch (error) {
+                                            console.error('Error moving ONU:', error);
+                                        }
+                                    }
                                 }}
                             >
                                 <Popup>

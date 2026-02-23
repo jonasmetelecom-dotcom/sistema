@@ -136,6 +136,23 @@ export class NetworkElementsService {
     return this.polesRepository.restore(id);
   }
 
+  async deleteOnu(id: string) {
+    return this.onusRepository.softDelete(id);
+  }
+
+  async restoreOnu(id: string) {
+    return this.onusRepository.restore(id);
+  }
+
+  async deleteRbs(id: string, user?: any) {
+    // If we have radio specific logic, it goes here
+    return this.rbsRepository.softDelete(id);
+  }
+
+  async restoreRbs(id: string, user?: any) {
+    return this.rbsRepository.restore(id);
+  }
+
   async deleteBox(id: string) {
     // 1. Clean up internals (Splitters/Fusions)
     try {
@@ -1395,6 +1412,12 @@ export class NetworkElementsService {
 
       // 7. Delete Poles
       await this.polesRepository.delete({ projectId });
+
+      // 8. Delete RBS (Radio Base Stations)
+      await this.rbsRepository.delete({ projectId });
+
+      // 9. Delete OLTs (Optical Line Terminals)
+      await this.oltsRepository.delete({ projectId });
 
       return { success: true, message: 'Project cleaned up successfully' };
     } catch (error) {

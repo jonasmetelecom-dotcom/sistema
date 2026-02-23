@@ -29,6 +29,11 @@ export class NetworkElementsController {
     return this.networkElementsService.findAllByProject(projectId, req.user);
   }
 
+  @Delete('project/:projectId')
+  removeAllByProject(@Param('projectId') projectId: string) {
+    return this.networkElementsService.removeAllByProject(projectId);
+  }
+
   @Post('poles')
   createPole(@Body() data: Partial<Pole>) {
     return this.networkElementsService.createPole(data);
@@ -92,6 +97,16 @@ export class NetworkElementsController {
   @Patch('cables/:id/restore')
   restoreCable(@Param('id') id: string) {
     return this.networkElementsService.restoreCable(id);
+  }
+
+  @Patch('onus/:id/restore')
+  restoreOnu(@Param('id') id: string) {
+    return this.networkElementsService.restoreOnu(id);
+  }
+
+  @Patch('rbs/:id/restore')
+  restoreRbs(@Param('id') id: string, @Req() req: any) {
+    return this.networkElementsService.restoreRbs(id, req.user);
   }
 
   // --- Connectivity Endpoints ---
