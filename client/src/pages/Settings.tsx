@@ -350,6 +350,19 @@ const UserConnections = () => {
         return deviceId === localStorage.getItem('deviceId');
     };
 
+    // Group sessions by user
+    const groupedSessions = sessions.reduce((acc: any, session) => {
+        const userId = session.userId;
+        if (!acc[userId]) {
+            acc[userId] = {
+                user: session.user,
+                items: []
+            };
+        }
+        acc[userId].items.push(session);
+        return acc;
+    }, {});
+
     return (
         <div className="max-w-3xl">
             <div className="flex justify-between items-center mb-6">
@@ -366,8 +379,8 @@ const UserConnections = () => {
                 </button>
             </div>
 
-            <div className="space-y-4">
-                {sessions.length === 0 && !loading && (
+            <div className="space-y-8">
+                {Object.keys(groupedSessions).length === 0 && !loading && (
                     <div className="text-center py-10 bg-gray-900/30 border border-dashed border-gray-700 rounded-xl">
                         <Monitor className="mx-auto text-gray-600 mb-3" size={40} />
                         <p className="text-gray-400 font-medium">Nenhum aparelho logado encontrado.</p>
@@ -377,50 +390,64 @@ const UserConnections = () => {
                     </div>
                 )}
 
-                {sessions.map((session) => (
-                    <div
-                        key={session.id}
-                        className={`bg-gray-900/50 border rounded-xl p-5 flex items-center justify-between transition-all ${isCurrentDevice(session.deviceId) ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-gray-700'
-                            }`}
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isCurrentDevice(session.deviceId) ? 'bg-blue-600/20 text-blue-400' : 'bg-gray-800 text-gray-400'
-                                }`}>
-                                <Monitor size={24} />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <p className="font-bold text-white">
-                                        ID: {session.deviceId.substring(0, 8)}... (MAC)
-                                    </p>
-                                    {isCurrentDevice(session.deviceId) && (
-                                        <span className="bg-blue-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full text-white">
-                                            Este Dispositivo
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-sm text-gray-400">IP: {session.ipAddress || 'Não identificado'}</p>
-                                <p className="text-xs text-gray-500">
-                                    Visto em: {new Date(session.lastSeen).toLocaleString('pt-BR')}
-                                </p>
-                            </div>
+                {Object.values(groupedSessions).map((group: any) => (
+                    <div key={group.user?.id} className="space-y-3">
+                        <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
+                            <User size={16} className="text-blue-400" />
+                            <h3 className="font-bold text-gray-300">
+                                {group.user?.name} <span className="text-gray-500 font-normal text-sm">({group.user?.email})</span>
+                            </h3>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                            {session.latitude && session.longitude ? (
-                                <a
-                                    href={`https://www.google.com/maps?q=${session.latitude},${session.longitude}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm flex items-center gap-2 border border-gray-600 transition-colors"
+                        <div className="grid gap-3">
+                            {group.items.map((session: any) => (
+                                <div
+                                    key={session.id}
+                                    className={`bg-gray-900/50 border rounded-xl p-4 flex items-center justify-between transition-all ${isCurrentDevice(session.deviceId) ? 'border-blue-500/50 ring-1 ring-blue-500/20' : 'border-gray-700'
+                                        }`}
                                 >
-                                    <MapPin size={16} className="text-red-400" />
-                                    Ver no Mapa
-                                    <ExternalLink size={14} className="opacity-50" />
-                                </a>
-                            ) : (
-                                <span className="text-xs text-gray-600 italic px-4">Localização não disponível</span>
-                            )}
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isCurrentDevice(session.deviceId) ? 'bg-blue-600/20 text-blue-400' : 'bg-gray-800 text-gray-400'
+                                            }`}>
+                                            <Monitor size={20} />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-white text-sm">
+                                                    ID: {session.deviceId.substring(0, 8)}...
+                                                </p>
+                                                {isCurrentDevice(session.deviceId) && (
+                                                    <span className="bg-blue-600 text-[9px] uppercase font-bold px-2 py-0.5 rounded-full text-white">
+                                                        Este
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <p className="text-xs text-gray-500">IP: {session.ipAddress || '?'}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    Visto em: {new Date(session.lastSeen).toLocaleString('pt-BR')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {session.latitude && session.longitude ? (
+                                            <a
+                                                href={`https://www.google.com/maps?q=${session.latitude},${session.longitude}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs flex items-center gap-2 border border-gray-600 transition-colors"
+                                            >
+                                                <MapPin size={14} className="text-red-400" />
+                                                Localizar
+                                                <ExternalLink size={12} className="opacity-50" />
+                                            </a>
+                                        ) : (
+                                            <span className="text-[10px] text-gray-600 italic px-2">Localização OFF</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ))}
@@ -430,7 +457,7 @@ const UserConnections = () => {
                 <div className="mt-8 p-4 bg-blue-900/20 border border-blue-900/50 rounded-xl">
                     <p className="text-sm text-blue-300 flex items-center gap-2">
                         <MapIcon size={18} />
-                        Há {sessions.length} aparelhos ativos. Você pode monitorar a localização de cada um acima.
+                        Há {sessions.length} conexões ativas monitoradas no momento.
                     </p>
                 </div>
             )}

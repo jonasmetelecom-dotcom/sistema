@@ -46,7 +46,12 @@ export class UsersController {
 
   @Get('sessions')
   getUserSessions(@Request() req: any) {
-    return this.usersService.getUserSessions(req.user.id);
+    if (req.user.role === 'admin') {
+      // Admin sees everything
+      return this.usersService.getUserSessions();
+    }
+    // Company users see their tenant's sessions
+    return this.usersService.getUserSessions(undefined, req.user.tenantId);
   }
 
   @Get(':id')

@@ -15,9 +15,14 @@ export class UsersService {
     private sessionRepository: Repository<UserSession>,
   ) { }
 
-  async getUserSessions(userId: string): Promise<UserSession[]> {
+  async getUserSessions(userId?: string, tenantId?: string): Promise<UserSession[]> {
+    const where: any = { isActive: true };
+    if (userId) where.userId = userId;
+    if (tenantId) where.tenantId = tenantId;
+
     return this.sessionRepository.find({
-      where: { userId, isActive: true },
+      where,
+      relations: ['user'],
       order: { lastSeen: 'DESC' },
     });
   }
