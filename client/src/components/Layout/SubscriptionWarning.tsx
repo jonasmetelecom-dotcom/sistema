@@ -9,20 +9,24 @@ export const SubscriptionWarning = () => {
     useEffect(() => {
         if (user?.tenant?.subscriptionEndsAt && user?.tenant?.plan !== 'free') {
             try {
-                const end = new Date(user.tenant.subscriptionEndsAt);
+                // Parse date string (YYYY-MM-DD) part directly to avoid timezone shift
+                const dateStr = user.tenant.subscriptionEndsAt.split('T')[0];
+                const [year, month, day] = dateStr.split('-').map(Number);
+
+                // Expiration date at local midnight
+                const expirationDate = new Date(year, month - 1, day);
+
+                // Today date at local midnight
                 const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-                // Reset time to zero for accurate day calculation
-                const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-                const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const diffTime = expirationDate.getTime() - today.getTime();
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-                const diff = endDay.getTime() - nowDay.getTime();
-                const days = Math.round(diff / (1000 * 60 * 60 * 24));
-
-                console.log(`[SubscriptionCheck] Plan: ${user.tenant.plan}, Ends: ${user.tenant.subscriptionEndsAt}, Days: ${days}`);
-                setDaysLeft(days);
+                console.log(`[SubscriptionCheck] Raw: ${user.tenant.subscriptionEndsAt}, Target: ${dateStr}, Today: ${today.toLocaleDateString()}, Diff: ${diffDays}`);
+                setDaysLeft(diffDays);
             } catch (e) {
-                console.error('[SubscriptionCheck] Error parsing date:', e);
+                console.error('[SubscriptionCheck] Error:', e);
                 setDaysLeft(null);
             }
         } else {
