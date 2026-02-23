@@ -363,7 +363,6 @@ const Map = () => {
     const [showMetrics, setShowMetrics] = useState(false);
     const [showMemorial, setShowMemorial] = useState(false);
     const [tracedPath, setTracedPath] = useState<any[]>([]);
-    const [otdrPoint, setOtdrPoint] = useState<{ point: LatLng, distance: number } | null>(null);
     const [deletedItem, setDeletedItem] = useState<{ id: string, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs', timeout: ReturnType<typeof setTimeout> } | null>(null);
 
     const [showCoverage, setShowCoverage] = useState(false);
@@ -576,67 +575,6 @@ const Map = () => {
         }
     };
 
-    const handleOTDR = (distanceMeters: number) => {
-        if (!tracedPath || tracedPath.length === 0) {
-            alert('Primeiro faça o rastreio da fibra (Trace) para usar o OTDR.');
-            return;
-        }
-
-        let remainingDist = distanceMeters;
-        let found = false;
-
-        // Iterate through traced path elements
-        for (const item of tracedPath) {
-            if (item.type === 'cable') {
-                const cable = elements.cables.find(c => c.id === item.id);
-                if (!cable) continue;
-
-                const slack = cable.slack || 0;
-
-                if (remainingDist <= slack) {
-                    // Break is in the slack
-                    setOtdrPoint({
-                        point: new LatLng(cable.points[0].lat, cable.points[0].lng),
-                        distance: distanceMeters
-                    });
-                    setCenter([cable.points[0].lat, cable.points[0].lng]);
-                    found = true;
-                    break;
-                }
-
-                remainingDist -= slack;
-
-                // Calculate length of this cable
-                for (let i = 0; i < cable.points.length - 1; i++) {
-                    const p1 = new LatLng(cable.points[i].lat, cable.points[i].lng);
-                    const p2 = new LatLng(cable.points[i + 1].lat, cable.points[i + 1].lng);
-                    const segmentDist = p1.distanceTo(p2);
-
-                    if (remainingDist <= segmentDist) {
-                        // Break is in this segment!
-                        // Interpolate
-                        const ratio = remainingDist / segmentDist;
-                        const lat = p1.lat + (p2.lat - p1.lat) * ratio;
-                        const lng = p1.lng + (p2.lng - p1.lng) * ratio;
-
-                        const point = new LatLng(lat, lng);
-                        setOtdrPoint({ point, distance: distanceMeters });
-                        setCenter([lat, lng]); // Fly to break
-                        found = true;
-                        break;
-                    }
-
-                    remainingDist -= segmentDist;
-                }
-
-                if (found) break;
-            }
-        }
-
-        if (!found) {
-            alert('A distância informada é maior que o comprimento total da rede iluminada.');
-        }
-    };
 
     // Icons
     const createIcon = (color: string, shape: 'circle' | 'square' = 'circle') => divIcon({
@@ -1447,28 +1385,7 @@ const Map = () => {
                         return null;
                     })}
 
-                    {/* OTDR Break Point Marker */}
-                    {otdrPoint && (
-                        <Marker
-                            position={otdrPoint.point}
-                            icon={divIcon({
-                                className: 'otdr-icon',
-                                html: `<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; animation: pulse 1s infinite;"></div>`,
-                                iconSize: [20, 20],
-                                iconAnchor: [10, 10]
-                            })}
-                        >
-                            <Popup autoClose={false} closeOnClick={false}>
-                                <div className="text-center">
-                                    <div className="font-bold text-red-600 mb-1">ROMPIMENTO DETECTADO</div>
-                                    <div className="text-xs font-mono bg-gray-100 p-1 rounded border border-gray-300">
-                                        Distância: {otdrPoint.distance.toFixed(2)}m
-                                    </div>
-                                    <div className="text-[10px] text-gray-500 mt-1">(OTDR)</div>
-                                </div>
-                            </Popup>
-                        </Marker>
-                    )}
+
 
                     {/* Pending Box Selection UI */}
                     {pendingBoxAt && (
