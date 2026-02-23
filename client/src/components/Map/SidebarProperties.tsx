@@ -114,23 +114,56 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                     {activeTab === 'general' ? (
                         <div className="flex flex-col gap-3">
+                            <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-800 flex flex-col gap-1 mb-4">
+                                <div className="flex justify-between items-center text-[10px] text-gray-500 font-mono">
+                                    <span>ID: {element.id.slice(0, 8)}</span>
+                                    {element.createdAt && (
+                                        <span>CRIADO EM: {new Date(element.createdAt).toLocaleDateString()}</span>
+                                    )}
+                                </div>
+                                {element.createdBy && (
+                                    <div className="text-[10px] text-gray-600">
+                                        Criado por: {element.createdBy}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex flex-col gap-1">
-                                <label className="text-xs text-gray-400">ID</label>
-                                <input
-                                    disabled
-                                    value={element.id.slice(0, 8)}
-                                    className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-500 text-sm"
-                                />
+                                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Nome</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={formData.name || ''}
+                                        onChange={handleChange}
+                                        className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                        placeholder="Ex: POSTE-001, CTO-05..."
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                                            let prefix = 'ID-';
+                                            if (elementType === 'pole') prefix = 'P-';
+                                            if (elementType === 'box') prefix = formData.type === 'ceo' ? 'CEO-' : 'CTO-';
+                                            if (elementType === 'cable') prefix = 'C-';
+                                            setFormData((prev: any) => ({ ...prev, name: prefix + randomSuffix }));
+                                        }}
+                                        className="p-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded border border-blue-600/30 transition-colors"
+                                        title="Gerar Nome Aleatório"
+                                    >
+                                        <Zap size={14} />
+                                    </button>
+                                </div>
                             </div>
 
                             {elementType === 'pole' && (
                                 <div className="flex flex-col gap-1">
-                                    <label className="text-xs text-gray-400">Type</label>
+                                    <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Material</label>
                                     <select
                                         name="material"
                                         value={formData.material || 'concrete'}
                                         onChange={handleChange}
-                                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
                                     >
                                         <option value="concrete">Concreto</option>
                                         <option value="wood">Madeira</option>
@@ -142,31 +175,44 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                             {elementType === 'box' && (
                                 <>
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Tipo de Caixa</label>
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tipo</label>
                                         <select
                                             name="type"
                                             value={formData.type || 'cto'}
-                                            onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                            onChange={(e) => {
+                                                const newType = e.target.value;
+                                                const defaultName = newType === 'cto' ? 'CTO-' : newType === 'ceo' ? 'CEO-' : 'CX-';
+                                                setFormData((prev: any) => ({
+                                                    ...prev,
+                                                    type: newType,
+                                                    name: prev.name && (prev.name.startsWith('CTO-') || prev.name.startsWith('CEO-') || prev.name.startsWith('CX-'))
+                                                        ? defaultName + prev.name.split('-')[1]
+                                                        : prev.name || defaultName
+                                                }));
+                                            }}
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
                                         >
-                                            <option value="cto">CAIXA CTO (Atendimento)</option>
-                                            <option value="ceo">CAIXA CEO (Emenda)</option>
-                                            <option value="splice">RESERVA/OUTROS</option>
+                                            <option value="cto">CTO (Atendimento)</option>
+                                            <option value="ceo">CEO (Emenda)</option>
+                                            <option value="splice">CAIXA DE PASSAGEM/OUTROS</option>
                                         </select>
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Capacity</label>
-                                        <select
-                                            name="capacity"
-                                            value={formData.capacity || 16}
-                                            onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                        >
-                                            <option value={8}>8 Portas</option>
-                                            <option value={16}>16 Portas</option>
-                                            <option value={24}>24 Portas</option>
-                                        </select>
-                                    </div>
+
+                                    {(formData.type === 'cto' || !formData.type) && (
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Capacidade</label>
+                                            <select
+                                                name="capacity"
+                                                value={formData.capacity || 16}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            >
+                                                <option value={8}>8 Portas</option>
+                                                <option value={16}>16 Portas</option>
+                                                <option value={24}>24 Portas</option>
+                                            </select>
+                                        </div>
+                                    )}
                                     <div className="mt-4 pt-4 border-t border-gray-800 flex flex-col gap-3">
                                         <button
                                             onClick={() => onOpenInternals && element && onOpenInternals(element.id)}
@@ -321,70 +367,65 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
 
                             {elementType === 'cable' && (
                                 <div className="flex flex-col gap-3">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tipo de Cabo</label>
+                                        <select
+                                            name="type"
+                                            value={formData.type || 'drop'}
+                                            onChange={handleChange}
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                        >
+                                            <option value="drop">Cabo Drop (1F)</option>
+                                            <option value="as80">Cabo AS80 (6-12F)</option>
+                                            <option value="as120">Cabo AS120 (24F+)</option>
+                                            <option value="underground">Cabo Subterrâneo</option>
+                                        </select>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400">Nível</label>
-                                            <input
-                                                type="text"
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Nível</label>
+                                            <select
                                                 name="level"
-                                                value={formData.level || ''}
+                                                value={formData.level || 'TERCIÁRIO'}
                                                 onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                                placeholder="Nível 1, 2..."
-                                            />
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            >
+                                                <option value="PRIMÁRIO">PRIMÁRIO</option>
+                                                <option value="SECUNDÁRIO">SECUNDÁRIO</option>
+                                                <option value="TERCIÁRIO">TERCIÁRIO</option>
+                                                <option value="ALIMENTAÇÃO">ALIMENTAÇÃO</option>
+                                            </select>
                                         </div>
                                         <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400">Tags</label>
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tags</label>
                                             <input
                                                 type="text"
                                                 name="tags"
                                                 value={formData.tags || ''}
                                                 onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
                                                 placeholder="Reserva, etc"
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400">Fiber Count</label>
-                                            <input
-                                                type="number"
-                                                name="fiberCount"
-                                                value={formData.fiberCount || 1}
-                                                onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400">Comprimento 3D (m)</label>
-                                            <input
-                                                type="number"
-                                                name="length3D"
-                                                value={formData.length3D || 0}
-                                                onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                            />
-                                        </div>
-                                    </div>
-
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Cores das Fibras</label>
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Cor do Cabo</label>
                                         <div className="grid grid-cols-6 gap-2 bg-gray-900/50 p-3 rounded-lg border border-gray-800">
                                             {[
-                                                { name: 'Azul', color: '#3b82f6' },
-                                                { name: 'Laranja', color: '#f97316' },
-                                                { name: 'Verde', color: '#22c55e' },
-                                                { name: 'Marrom', color: '#78350f' },
-                                                { name: 'Cinza', color: '#64748b' },
-                                                { name: 'Branco', color: '#f8fafc' },
-                                                { name: 'Vermelho', color: '#ef4444' },
+                                                { name: 'Verde', color: '#009c3b' },
+                                                { name: 'Amarelo', color: '#ffdf00' },
+                                                { name: 'Branco', color: '#ffffff' },
+                                                { name: 'Azul', color: '#0072bc' },
+                                                { name: 'Vermelho', color: '#ff0000' },
+                                                { name: 'Violeta', color: '#8a2be2' },
+                                                { name: 'Marrom', color: '#964b00' },
+                                                { name: 'Rosa', color: '#ffc0cb' },
                                                 { name: 'Preto', color: '#000000' },
-                                                { name: 'Amarelo', color: '#eab308' },
-                                                { name: 'Violeta', color: '#a855f7' },
-                                                { name: 'Rosa', color: '#ec4899' },
-                                                { name: 'Aqua', color: '#06b6d4' }
+                                                { name: 'Cinza', color: '#808080' },
+                                                { name: 'Laranja', color: '#ff7f00' },
+                                                { name: 'Aqua', color: '#00ffff' }
                                             ].map((c) => (
                                                 <button
                                                     key={c.name}
@@ -413,30 +454,68 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                     </div>
 
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Tipo de Cabo</label>
-                                        <select
-                                            name="type"
-                                            value={formData.type || 'drop'}
-                                            onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                        >
-                                            <option value="drop">Drop</option>
-                                            <option value="as80">AS80</option>
-                                            <option value="as120">AS120</option>
-                                            <option value="underground">Subterrâneo</option>
-                                        </select>
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Estado de Implantação</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setFormData((prev: any) => ({ ...prev, status: 'planned' }))}
+                                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border ${formData.status === 'planned' || !formData.status ? 'bg-yellow-600/20 border-yellow-600 text-yellow-500 shadow-lg shadow-yellow-900/20' : 'bg-gray-800 border-gray-700 text-gray-500'}`}
+                                            >
+                                                Não implantado
+                                            </button>
+                                            <button
+                                                onClick={() => setFormData((prev: any) => ({ ...prev, status: 'deployed' }))}
+                                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border ${formData.status === 'deployed' ? 'bg-emerald-600/20 border-emerald-600 text-emerald-500 shadow-lg shadow-emerald-900/20' : 'bg-gray-800 border-gray-700 text-gray-500'}`}
+                                            >
+                                                Implantado
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Reserva Técnica (Metros)</label>
-                                        <input
-                                            type="number"
-                                            name="slack"
-                                            value={formData.slack || 0}
-                                            onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
-                                            placeholder="0"
-                                        />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Fibras (FO)</label>
+                                            <input
+                                                type="number"
+                                                name="fiberCount"
+                                                value={formData.fiberCount || 1}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Reserva (m)</label>
+                                            <input
+                                                type="number"
+                                                name="slack"
+                                                value={formData.slack || 0}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1 opacity-60">
+                                            <label className="text-xs text-gray-500 font-bold uppercase tracking-wider">Comprimento Plano</label>
+                                            <div className="bg-gray-900 border border-gray-800 rounded px-2 py-1.5 text-gray-400 text-sm font-mono">
+                                                {element.points ? (element.points.length * 10).toFixed(2) : '0.00'}m
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Comprimento 3D</label>
+                                            <div className="flex gap-1">
+                                                <input
+                                                    type="number"
+                                                    name="length3D"
+                                                    value={formData.length3D || 0}
+                                                    onChange={handleChange}
+                                                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none font-mono"
+                                                />
+                                                <div className="bg-blue-600/20 text-blue-400 p-1.5 rounded border border-blue-600/30 flex items-center justify-center">
+                                                    <span className="text-[10px] font-bold">G</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="mt-4 pt-4 border-t border-gray-800">
@@ -448,7 +527,7 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                                     <select
                                                         value={selectedFiber}
                                                         onChange={(e) => setSelectedFiber(parseInt(e.target.value))}
-                                                        className="bg-gray-900 border border-gray-700 rounded text-xs text-white px-1 py-0.5 outline-none"
+                                                        className="bg-gray-950 border border-gray-700 rounded text-xs text-white px-1 py-0.5 outline-none"
                                                     >
                                                         {Array.from({ length: formData.fiberCount || 1 }, (_, i) => i + 1).map(num => (
                                                             <option key={num} value={num}>{num}</option>
@@ -456,13 +535,21 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                                     </select>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => onTrace && element && onTrace(element.id, selectedFiber)}
-                                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-yellow-900/20 active:scale-95"
-                                            >
-                                                <Zap size={16} fill="currentColor" />
-                                                ILUMINAR PELO {selectedFiber}
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => onTrace && element && onTrace(element.id, selectedFiber)}
+                                                    className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-yellow-900/20 active:scale-95"
+                                                >
+                                                    <Zap size={16} fill="currentColor" />
+                                                    Iluminar
+                                                </button>
+                                                <button
+                                                    onClick={handleSave}
+                                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+                                                >
+                                                    Aplicar
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

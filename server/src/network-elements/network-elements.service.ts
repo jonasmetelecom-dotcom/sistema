@@ -114,17 +114,20 @@ export class NetworkElementsService {
   }
 
   async updatePole(id: string, data: Partial<Pole>) {
-    await this.polesRepository.update(id, data);
+    const { id: _, ...updateData } = data as any;
+    await this.polesRepository.update(id, updateData);
     return this.polesRepository.findOne({ where: { id } });
   }
 
   async updateBox(id: string, data: Partial<InfrastructureBox>) {
-    await this.boxesRepository.update(id, data);
+    const { id: _, ...updateData } = data as any;
+    await this.boxesRepository.update(id, updateData);
     return this.boxesRepository.findOne({ where: { id } });
   }
 
   async updateCable(id: string, data: Partial<Cable>) {
-    await this.cablesRepository.update(id, data);
+    const { id: _, type: __, ...updateData } = data as any;
+    await this.cablesRepository.update(id, updateData);
     return this.cablesRepository.findOne({ where: { id } });
   }
 

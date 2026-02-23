@@ -118,24 +118,41 @@ const MapResizer = () => {
 const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
     const isCTO = type === 'cto' || type === 'termination' || name?.toUpperCase().includes('CTO');
     const isCEO = type === 'ceo' || type === 'splice_closure' || name?.toUpperCase().includes('CEO') || name?.toUpperCase().includes('EMENDA');
-    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : '#94a3b8')); // Red if full, Emerald for CTO, Blue for CEO, Gray for others
+    const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : '#94a3b8'));
     const shape = isCTO ? 'square' : 'diamond';
 
     return divIcon({
         className: 'custom-box-icon cursor-grab active:cursor-grabbing',
-        html: `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 0 5px ${isFull ? 'rgba(239,68,68,0.5)' : 'rgba(0,0,0,0.3)'}; transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};"></div>`,
+        html: `<div style="
+            background-color: ${color}; 
+            width: 14px; 
+            height: 14px; 
+            border: 2px solid white; 
+            box-shadow: 0 0 10px ${isFull ? 'rgba(239,68,68,0.6)' : isCTO ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.4)'}; 
+            transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};
+            border-radius: ${shape === 'square' ? '2px' : '0'};
+            transition: all 0.2s ease-in-out;
+        "></div>`,
         iconSize: [14, 14],
         iconAnchor: [7, 7]
     });
 };
 
 const getOnuIcon = (status: string) => {
-    const color = status === 'planned' ? '#22d3ee' : status === 'online' ? '#10b981' : '#94a3b8';
+    const color = status === 'online' ? '#10b981' : (status === 'planned' ? '#22d3ee' : '#ef4444'); // Green if online, Cyan if planned, Red if offline
     return divIcon({
         className: 'custom-onu-icon cursor-grab active:cursor-grabbing',
-        html: `<div style="background-color: ${color}; width: 12px; height: 12px; border: 2px solid white; border-radius: 2px; box-shadow: 0 0 5px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
+        html: `<div style="
+            background-color: ${color}; 
+            width: 10px; 
+            height: 10px; 
+            border: 2px solid white; 
+            border-radius: 50%; 
+            box-shadow: 0 0 8px ${status === 'online' ? 'rgba(16,185,129,0.5)' : 'rgba(0,0,0,0.3)'};
+            transition: all 0.2s ease-in-out;
+        "></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
     });
 };
 
@@ -1023,11 +1040,41 @@ const Map = () => {
                     {/* Render Cables */}
                     {elements.cables.map(cable => {
                         const isSelected = selectedElement?.id === cable.id && selectedElement?.type === 'cable';
-                        const color = isSelected ? '#f59e0b' :
-                            cable.type === 'as80' ? '#ef4444' : // Red
-                                cable.type === 'as120' ? '#b91c1c' : // Dark Red
-                                    cable.type === 'underground' ? '#8b5cf6' : // Violet
-                                        '#ec4899'; // Pink (Drop/Default)
+
+                        const fiberColorMap: Record<string, string> = {
+                            'Verde': '#009c3b',
+                            'Amarelo': '#ffdf00',
+                            'Branco': '#ffffff',
+                            'Azul': '#0072bc',
+                            'Vermelho': '#ff0000',
+                            'Violeta': '#8a2be2',
+                            'Marrom': '#964b00',
+                            'Rosa': '#ffc0cb',
+                            'Preto': '#000000',
+                            'Cinza': '#808080',
+                            'Laranja': '#ff7f00',
+                            'Aqua': '#00ffff'
+                        };
+
+                        const getCableColor = () => {
+                            if (isSelected) return '#f59e0b';
+
+                            // If user has selected specific colors, use the first one
+                            if (cable.colors) {
+                                const firstColor = cable.colors.split(',')[0].trim();
+                                if (fiberColorMap[firstColor]) return fiberColorMap[firstColor];
+                            }
+
+                            // Fallback to type-based colors
+                            switch (cable.type) {
+                                case 'as80': return '#ef4444';
+                                case 'as120': return '#b91c1c';
+                                case 'underground': return '#8b5cf6';
+                                default: return '#ec4899';
+                            }
+                        };
+
+                        const color = getCableColor();
 
                         return (
                             <div key={cable.id}>
