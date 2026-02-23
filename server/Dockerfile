@@ -39,6 +39,5 @@ RUN mkdir -p data && chmod 777 data
 
 EXPOSE 3000
 
-# Using explicit node command to avoid npm overhead and clarify entrypoint
-# NestJS 11 uses main.js in the root of dist
-CMD ["node", "dist/main.js"]
+# Using npm script to run
+CMD ["npm", "run", "start:prod"]
