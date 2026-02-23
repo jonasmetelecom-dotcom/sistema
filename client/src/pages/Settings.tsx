@@ -368,7 +368,13 @@ const UserConnections = () => {
 
             <div className="space-y-4">
                 {sessions.length === 0 && !loading && (
-                    <p className="text-gray-500 text-center py-8">Nenhum aparelho encontrado.</p>
+                    <div className="text-center py-10 bg-gray-900/30 border border-dashed border-gray-700 rounded-xl">
+                        <Monitor className="mx-auto text-gray-600 mb-3" size={40} />
+                        <p className="text-gray-400 font-medium">Nenhum aparelho logado encontrado.</p>
+                        <p className="text-gray-500 text-sm mt-2 max-w-xs mx-auto">
+                            Como este recurso é novo, você precisa <b>sair e entrar novamente</b> para que este aparelho seja registrado.
+                        </p>
+                    </div>
                 )}
 
                 {sessions.map((session) => (

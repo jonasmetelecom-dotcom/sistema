@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { LogIn, Lock, Mail } from 'lucide-react';
+import { LogIn, Lock, Mail, RefreshCw } from 'lucide-react';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -17,26 +17,31 @@ const Login = () => {
         setError('');
         setLoading(true);
 
-        // Get or Generate Device ID (Virtual MAC)
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-            deviceId = crypto.randomUUID();
-            localStorage.setItem('deviceId', deviceId);
-        }
-
-        // Try to get location
-        let coords = { latitude: undefined as number | undefined, longitude: undefined as number | undefined };
         try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-            });
-            coords.latitude = position.coords.latitude;
-            coords.longitude = position.coords.longitude;
-        } catch (locationError) {
-            console.warn('Could not get login location:', locationError);
-        }
+            // Get or Generate Device ID (Virtual MAC)
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+                // Fallback for crypto.randomUUID() which only works in secure contexts (HTTPS)
+                deviceId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem('deviceId', deviceId);
+            }
 
-        try {
+            // Try to get location
+            let coords = { latitude: undefined as number | undefined, longitude: undefined as number | undefined };
+            if (navigator?.geolocation) {
+                try {
+                    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+                    });
+                    coords.latitude = position.coords.latitude;
+                    coords.longitude = position.coords.longitude;
+                } catch (locationError) {
+                    console.warn('Could not get login location:', locationError);
+                }
+            }
+
             const response = await api.post('/auth/login', {
                 email,
                 password,
@@ -45,6 +50,11 @@ const Login = () => {
             });
 
             const { access_token, user } = response.data;
+            if (response.data.statusCode === 401) {
+                setError('E-mail ou senha incorretos.');
+                return;
+            }
+
             login(access_token, user);
             navigate('/dashboard');
         } catch (err: any) {
@@ -113,7 +123,12 @@ const Login = () => {
                             disabled={loading}
                             className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                            {loading ? 'Entrando...' : 'Entrar'}
+                            {loading ? (
+                                <div className="flex items-center gap-2">
+                                    <RefreshCw className="animate-spin" size={18} />
+                                    <span>Entrando...</span>
+                                </div>
+                            ) : 'Entrar'}
                         </button>
                     </form>
 
