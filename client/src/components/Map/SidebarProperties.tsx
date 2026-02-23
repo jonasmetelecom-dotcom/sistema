@@ -25,6 +25,7 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
     const [activeTab, setActiveTab] = useState<'general' | 'engineering'>('general');
     const [linkBudget, setLinkBudget] = useState<any>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedFiber, setSelectedFiber] = useState<number>(1);
 
     useEffect(() => {
         if (element) {
@@ -320,24 +321,73 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
 
                             {elementType === 'cable' && (
                                 <div className="flex flex-col gap-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400">Nível</label>
+                                            <input
+                                                type="text"
+                                                name="level"
+                                                value={formData.level || ''}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                                placeholder="Nível 1, 2..."
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400">Tags</label>
+                                            <input
+                                                type="text"
+                                                name="tags"
+                                                value={formData.tags || ''}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                                placeholder="Reserva, etc"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400">Fiber Count</label>
+                                            <input
+                                                type="number"
+                                                name="fiberCount"
+                                                value={formData.fiberCount || 1}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400">Comprimento 3D (m)</label>
+                                            <input
+                                                type="number"
+                                                name="length3D"
+                                                value={formData.length3D || 0}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs text-gray-400">Fiber Count</label>
+                                        <label className="text-xs text-gray-400">Cores (Separadas por vírgula)</label>
                                         <input
-                                            type="number"
-                                            name="fiberCount"
-                                            value={formData.fiberCount || 1}
+                                            type="text"
+                                            name="colors"
+                                            value={formData.colors || ''}
                                             onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
+                                            placeholder="Azul, Verde, Amarelo..."
                                         />
                                     </div>
+
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs text-gray-400">Tipo de Cabo</label>
                                         <select
                                             name="type"
                                             value={formData.type || 'drop'}
                                             onChange={handleChange}
-                                            disabled
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-400 text-sm outline-none cursor-not-allowed"
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
                                         >
                                             <option value="drop">Drop</option>
                                             <option value="as80">AS80</option>
@@ -345,6 +395,7 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                             <option value="underground">Subterrâneo</option>
                                         </select>
                                     </div>
+
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs text-gray-400">Reserva Técnica (Metros)</label>
                                         <input
@@ -352,18 +403,36 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                             name="slack"
                                             value={formData.slack || 0}
                                             onChange={handleChange}
-                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm focus:border-blue-500 outline-none"
                                             placeholder="0"
                                         />
                                     </div>
-                                    <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
-                                        <button
-                                            onClick={() => onTrace && element && onTrace(element.id, 1)}
-                                            className="w-full bg-yellow-900/30 hover:bg-yellow-900/50 text-yellow-400 border border-yellow-900/50 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                                        >
-                                            <Zap size={16} />
-                                            Rastrear Fibra 1
-                                        </button>
+
+                                    <div className="mt-4 pt-4 border-t border-gray-800">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs text-yellow-500 font-bold uppercase tracking-wider">Iluminação de Fibra</label>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-gray-400">Pelo:</span>
+                                                    <select
+                                                        value={selectedFiber}
+                                                        onChange={(e) => setSelectedFiber(parseInt(e.target.value))}
+                                                        className="bg-gray-900 border border-gray-700 rounded text-xs text-white px-1 py-0.5 outline-none"
+                                                    >
+                                                        {Array.from({ length: formData.fiberCount || 1 }, (_, i) => i + 1).map(num => (
+                                                            <option key={num} value={num}>{num}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => onTrace && element && onTrace(element.id, selectedFiber)}
+                                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-yellow-900/20 active:scale-95"
+                                            >
+                                                <Zap size={16} fill="currentColor" />
+                                                ILUMINAR PELO {selectedFiber}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

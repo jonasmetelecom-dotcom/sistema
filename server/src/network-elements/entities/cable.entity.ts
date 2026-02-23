@@ -48,6 +48,18 @@ export class Cable {
   @Column({ nullable: true })
   toType: string; // 'box' | 'pole'
 
+  @Column({ nullable: true })
+  level: string;
+
+  @Column({ nullable: true })
+  tags: string;
+
+  @Column({ nullable: true })
+  colors: string;
+
+  @Column({ type: 'float', default: 0 })
+  length3D: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -128,6 +128,18 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                 return;
             }
 
+            // check for existing fusion to prevent duplication
+            const exists = data?.fusions.some((f: any) =>
+                (f.originId === origin.id && f.originFiberIndex === origin.fiberIndex && f.destinationId === destination.id && f.destinationFiberIndex === destination.fiberIndex) ||
+                (f.originId === destination.id && f.originFiberIndex === destination.fiberIndex && f.destinationId === origin.id && f.destinationFiberIndex === origin.fiberIndex)
+            );
+
+            if (exists) {
+                setSelectedOrigin(null);
+                console.log('Fusion already exists, skipping.');
+                return;
+            }
+
             // Create Fusion
             try {
                 await api.post('/network-elements/fusions', {

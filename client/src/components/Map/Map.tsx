@@ -77,7 +77,7 @@ const getSnappedPosition = (
     elements: { poles: any[], boxes: any[] },
     map: L.Map
 ): { latlng: LatLng, id?: string, type?: 'pole' | 'box' } => {
-    const snapDistancePixels = 20;
+    const snapDistancePixels = 30;
     let closest: { latlng: LatLng, id: string, type: 'pole' | 'box' } | null = null;
     let minDistance = Infinity;
 
@@ -150,7 +150,7 @@ const getRadioIcon = (status: string) => {
     });
 };
 
-const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCableStart, elements, cableSettings, boxSettings, setRulerPoints, setStreetViewLocation }: any) => {
+const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCableStart, elements, cableSettings, boxSettings, setRulerPoints, setStreetViewLocation, setPendingBoxAt }: any) => {
     const map = useMap();
 
     useMapEvents({
@@ -181,13 +181,17 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
                 }
             } else if (activeTool === 'box') {
                 try {
+                    const isCTO = boxSettings.type === 'cto' || boxSettings.type === 'termination';
+                    const typeLabel = isCTO ? 'CTO' : 'CEO';
+                    const defaultName = `${typeLabel}-${(elements.boxes.filter((b: any) => (isCTO ? (b.type === 'cto' || b.type === 'termination') : (b.type !== 'cto' && b.type !== 'termination'))).length + 1)}`;
+
                     await api.post('/network-elements/boxes', {
                         projectId,
                         latitude: finalLatLng.lat,
                         longitude: finalLatLng.lng,
                         type: boxSettings.type,
                         capacity: boxSettings.capacity,
-                        name: 'Nova Caixa'
+                        name: defaultName
                     });
                     onElementCreated();
                 } catch (error) {
@@ -217,11 +221,11 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
                         const toId = snapped.id;
                         const toType = snapped.type;
 
-                        // Only create if we have a valid connection or allow floating cables?
-                        // Let's assume we allow floating/intermediate points.
-                        // Ideally "cables" connect elements. If no element, it's just a point?
-                        // The backend expects fromId/toId usually.
-                        // If we just clicked map, we probably want to add a vertex or end it?
+                        // MANDATORY BOX: If not snapped to an element, require box creation
+                        if (!toId) {
+                            setPendingBoxAt(finalLatLng);
+                            return;
+                        }
 
                         // Create cable with selected Settings
                         await api.post('/network-elements/cables', {
@@ -366,6 +370,7 @@ const Map = () => {
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [streetViewLocation, setStreetViewLocation] = useState<LatLng | null>(null);
     const [mapImage, setMapImage] = useState<string | null>(null);
+    const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const mapRef = useRef<HTMLDivElement>(null);
@@ -734,6 +739,59 @@ const Map = () => {
         }
     };
 
+    const handleCreatePendingBox = async (type: 'ceo' | 'cto') => {
+        if (!pendingBoxAt || !projectId || !cableStart) return;
+
+        try {
+            setLoading(true);
+            const isCTO = type === 'cto';
+            const typeLabel = isCTO ? 'CTO' : 'CEO';
+            const defaultName = `${typeLabel}-${(elements.boxes.filter((b: any) => (isCTO ? (b.type === 'cto' || b.type === 'termination') : (b.type !== 'cto' && b.type !== 'termination'))).length + 1)}`;
+
+            // 1. Create Box
+            const boxResponse = await api.post('/network-elements/boxes', {
+                projectId,
+                latitude: pendingBoxAt.lat,
+                longitude: pendingBoxAt.lng,
+                type: isCTO ? 'cto' : 'ceo',
+                capacity: isCTO ? 16 : 0, // CEO can have 0 capacity for fusions only
+                name: defaultName
+            });
+
+            const newBox = boxResponse.data;
+
+            // 2. Create Cable
+            await api.post('/network-elements/cables', {
+                projectId,
+                type: cableSettings.type,
+                fiberCount: cableSettings.fiberCount,
+                points: [
+                    { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
+                    { lat: pendingBoxAt.lat, lng: pendingBoxAt.lng }
+                ],
+                fromId: cableStart.elementId,
+                fromType: cableStart.elementType,
+                toId: newBox.id,
+                toType: 'box'
+            });
+
+            // 3. Update continuous drawing
+            setCableStart({
+                latlng: pendingBoxAt,
+                elementId: newBox.id,
+                elementType: 'box'
+            });
+
+            setPendingBoxAt(null);
+            fetchElements();
+        } catch (error) {
+            console.error('Error creating pending box and cable:', error);
+            alert('Erro ao criar caixa e cabo');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleClearProject = async () => {
         if (!projectId) return;
         try {
@@ -977,6 +1035,7 @@ const Map = () => {
                         boxSettings={boxSettings}
                         setRulerPoints={setRulerPoints}
                         setStreetViewLocation={setStreetViewLocation}
+                        setPendingBoxAt={setPendingBoxAt}
                     />
 
                     {/* Render Signal Coverage (Heatmap/Radius) */}
@@ -1374,12 +1433,13 @@ const Map = () => {
                                     key={`trace-${idx}`}
                                     positions={cable.points}
                                     pathOptions={{
-                                        color: '#ffff00', // Bright Yellow
-                                        weight: 8,
-                                        opacity: 0.8,
+                                        color: '#00ffff', // Cyan glow
+                                        weight: 10,
+                                        opacity: 0.9,
                                         lineCap: 'round',
                                         lineJoin: 'round',
-                                        dashArray: '1, 10' // Dotted glow effect
+                                        dashArray: '10, 10',
+                                        className: 'animate-pulse' // Add pulse animation if supported or just style
                                     }}
                                 />
                             );
@@ -1405,6 +1465,47 @@ const Map = () => {
                                         Distância: {otdrPoint.distance.toFixed(2)}m
                                     </div>
                                     <div className="text-[10px] text-gray-500 mt-1">(OTDR)</div>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )}
+
+                    {/* Pending Box Selection UI */}
+                    {pendingBoxAt && (
+                        <Marker
+                            position={pendingBoxAt}
+                            icon={divIcon({
+                                className: 'pending-box-picker',
+                                html: `<div style="background-color: #3b82f6; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(59,130,246,0.8);"></div>`,
+                                iconSize: [12, 12],
+                                iconAnchor: [6, 6]
+                            })}
+                        >
+                            <Popup autoClose={false} closeOnClick={false} closeButton={false} className="box-choice-popup">
+                                <div className="p-2 min-w-[160px]">
+                                    <div className="text-xs font-bold text-gray-700 mb-2 text-center uppercase tracking-wider">Criar Caixa no Final</div>
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            onClick={() => handleCreatePendingBox('cto')}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center justify-between"
+                                        >
+                                            <span>CAIXA CTO</span>
+                                            <Box size={12} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleCreatePendingBox('ceo')}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center justify-between"
+                                        >
+                                            <span>CAIXA CEO</span>
+                                            <Zap size={12} />
+                                        </button>
+                                        <button
+                                            onClick={() => setPendingBoxAt(null)}
+                                            className="text-[9px] text-gray-400 hover:text-gray-600 font-medium py-1 mt-1 border-t border-gray-100"
+                                        >
+                                            CANCELAR
+                                        </button>
+                                    </div>
                                 </div>
                             </Popup>
                         </Marker>
