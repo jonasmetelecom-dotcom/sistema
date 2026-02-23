@@ -90,11 +90,24 @@ const getSnappedPosition = (
 const MapResizer = () => {
     const map = useMap();
     useEffect(() => {
+        const resizeObserver = new ResizeObserver(() => {
+            map.invalidateSize();
+        });
+
+        const container = map.getContainer();
+        if (container) {
+            resizeObserver.observe(container);
+        }
+
+        // Initial invalidate
         const timer = setTimeout(() => {
             map.invalidateSize();
-            console.log('Map size invalidated');
         }, 500);
-        return () => clearTimeout(timer);
+
+        return () => {
+            resizeObserver.disconnect();
+            clearTimeout(timer);
+        };
     }, [map]);
     return null;
 };
@@ -345,6 +358,8 @@ const Map = () => {
     const [showCoverage, setShowCoverage] = useState(false);
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [mapImage, setMapImage] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const mapRef = useRef<HTMLDivElement>(null);
 
     // Search & Navigation
@@ -425,7 +440,7 @@ const Map = () => {
         try {
             const response = await api.get(`/projects/${projectId}`);
             const { latitude, longitude } = response.data || {};
-            if (latitude && longitude) {
+            if (latitude != null && longitude != null) {
                 setCenter([latitude, longitude]);
             }
         } catch (error) {
@@ -435,6 +450,8 @@ const Map = () => {
 
     const fetchElements = useCallback(async () => {
         if (!projectId) return;
+        setLoading(true);
+        setError(null);
         try {
             const response = await api.get(`/network-elements/project/${projectId}`);
             console.log('Fetched elements:', response.data);
@@ -449,8 +466,11 @@ const Map = () => {
                 };
                 setElements(newElements);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching elements:', error);
+            setError('Falha ao carregar elementos do mapa. Verifique sua conexão.');
+        } finally {
+            setLoading(false);
         }
     }, [projectId]);
 
@@ -494,10 +514,15 @@ const Map = () => {
             });
 
             if (allPoints.length > 0) {
-                const newBounds = L.latLngBounds(allPoints);
-                if (newBounds.isValid()) {
-                    setBounds(newBounds);
-                    setHasZoomedToProject(true);
+                try {
+                    const newBounds = L.latLngBounds(allPoints);
+                    if (newBounds.isValid()) {
+                        setBounds(newBounds);
+                        setHasZoomedToProject(true);
+                    }
+                } catch (err) {
+                    console.error('Error calculating bounds:', err);
+                    setHasZoomedToProject(true); // Don't try again if it failed once
                 }
             }
         }
@@ -746,6 +771,26 @@ const Map = () => {
 
     return (
         <div className="flex-1 relative h-full w-full">
+            {loading && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-pulse">
+                    <RefreshCw size={14} className="animate-spin" />
+                    Atualizando Mapa...
+                </div>
+            )}
+
+            {error && (
+                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-red-600/90 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+                    <AlertTriangle size={20} />
+                    <span>{error}</span>
+                    <button
+                        onClick={() => fetchElements()}
+                        className="bg-white/20 hover:bg-white/30 p-1.5 rounded-lg transition-colors"
+                    >
+                        <RefreshCw size={16} />
+                    </button>
+                </div>
+            )}
+
             <NetworkToolbar
                 activeTool={activeTool}
                 onToolChange={setActiveTool}
@@ -877,6 +922,7 @@ const Map = () => {
 
             <div ref={mapRef} className="w-full h-full">
                 <MapContainer
+                    key={projectId || 'none'}
                     center={defaultCenter}
                     zoom={13}
                     zoomControl={false}
@@ -895,7 +941,7 @@ const Map = () => {
                         <LayersControl.BaseLayer name="Satélite">
                             <TileLayer
                                 attribution='&copy; Google Maps'
-                                url="http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}"
+                                url="https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}"
                                 maxNativeZoom={20}
                                 maxZoom={22}
                             />

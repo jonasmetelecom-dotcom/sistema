@@ -1384,10 +1384,16 @@ export class NetworkElementsService {
       // 3. Delete Cables
       await this.cablesRepository.delete({ projectId });
 
-      // 4. Delete Boxes
+      // 4. Delete ONUs (Customers)
+      await this.onusRepository.delete({ projectId });
+
+      // 5. Delete CTO Customers (Assignments)
+      await this.ctoCustomersRepository.delete({ projectId });
+
+      // 6. Delete Boxes
       await this.boxesRepository.delete({ projectId });
 
-      // 5. Delete Poles
+      // 7. Delete Poles
       await this.polesRepository.delete({ projectId });
 
       return { success: true, message: 'Project cleaned up successfully' };
