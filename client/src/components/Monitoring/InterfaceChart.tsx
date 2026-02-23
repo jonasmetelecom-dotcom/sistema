@@ -12,7 +12,7 @@ interface InterfaceChartProps {
 }
 
 export const InterfaceChart = ({ data, name }: InterfaceChartProps) => {
-    const formatBps = (value: number | string) => {
+    const formatBps = (value: any) => {
         const val = Number(value) || 0;
         if (val === 0) return '0 bps';
         const k = 1024;
@@ -57,7 +57,7 @@ export const InterfaceChart = ({ data, name }: InterfaceChartProps) => {
                         <Tooltip
                             contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }}
                             itemStyle={{ fontSize: '12px' }}
-                            formatter={(value: number | string) => [formatBps(Number(value) || 0), 'Bits/s']}
+                            formatter={(value: any) => [formatBps(value), 'Bits/s']}
                         />
                         <Area
                             type="monotone"

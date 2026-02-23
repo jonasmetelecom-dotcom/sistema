@@ -10,7 +10,9 @@ export const UpdateBanner = () => {
     useEffect(() => {
         const checkUpdate = async () => {
             // Avoid checking too often in dev
-            if (import.meta.env.DEV) return;
+            // Using a safe check to avoid 'process' error in strict environments
+            const isDev = import.meta.env.DEV;
+            if (isDev) return;
 
             try {
                 const res = await api.get('/system/check-update');
