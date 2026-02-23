@@ -35,6 +35,14 @@ const Register = () => {
         try {
             const { confirmPassword, ...registerData } = formData;
             const response = await api.post('/auth/register', registerData);
+
+            if (response.data.pendingApproval) {
+                // Se cair aqui, a empresa precisa de aprovação
+                setError(response.data.message);
+                setFormData({ ...formData, password: '', confirmPassword: '' }); // Limpa senhas por segurança
+                return;
+            }
+
             const { access_token, user } = response.data;
             login(access_token, user);
             navigate('/dashboard');
@@ -59,8 +67,14 @@ const Register = () => {
                     </div>
 
                     {error && (
-                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
+                        <div className={`mb-6 p-4 border rounded-lg text-sm ${error.includes('sucesso') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
                             {error}
+                        </div>
+                    )}
+
+                    {error && error.includes('sucesso') && (
+                        <div className="text-center pb-4">
+                            <Link to="/login" className="text-emerald-500 font-bold hover:underline">Ir para o Login</Link>
                         </div>
                     )}
 

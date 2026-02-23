@@ -86,14 +86,26 @@ export class AuthService {
     const hash = await bcrypt.hash(registerDto.password, salt);
 
     // Create User
-    await this.usersService.create({
+    const isAdminMaster = registerDto.email === 'jonascan@gmail.com';
+    const user = await this.usersService.create({
       name: registerDto.name,
       email: registerDto.email,
       passwordHash: hash, // Saving hashed password
       tenantId: savedTenant.id,
-      role: 'admin',
+      role: isAdminMaster ? 'super_admin' : 'admin',
     });
 
-    return this.login(await this.usersService.findByEmail(registerDto.email));
+    // If it's the master admin, activate his tenant automatically
+    if (isAdminMaster) {
+      savedTenant.isActive = true;
+      await this.tenantRepository.save(savedTenant);
+      return this.login(user); // Auto-login master
+    }
+
+    // For others, return a message that approval is pending
+    return {
+      message: 'Cadastro realizado com sucesso! Aguarde a aprovação do administrador para acessar o sistema.',
+      pendingApproval: true
+    };
   }
 }
