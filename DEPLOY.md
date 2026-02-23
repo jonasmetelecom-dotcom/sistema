@@ -89,19 +89,29 @@ O sistema deve carregar a tela de login.
 - **Parar o sistema**: `docker compose down`
 - **Ver logs em tempo real**: `docker compose logs -f`
 
-### Como Atualizar o Sistema (Aplicar Correções)
-Sempre que eu (a IA) ou você fizermos melhorias no código, siga estes passos na VM para aplicar:
+### Como de Atualizar (Do PC para a VM)
 
-1.  **Baixar as mudanças**:
-    ```bash
-    git pull
-    ```
+Para aplicar a correção que fiz agora:
 
-2.  **Recriar os containers (com a nova versão)**:
-    ```bash
-    docker compose up -d --build
-    ```
-    *Isso vai garantir que todas as alterações (frontend, backend e configurações) sejam aplicadas.*
+1. **No seu computador (o PC onde você está):**  
+   Envie as mudanças para o git (se já não fez):
+   ```bash
+   git add .
+   git commit -m "Correção de API e Nginx"
+   git push
+   ```
+
+2. **Na sua VM (lá no Vmware):**  
+   Rode estes comandos para atualizar:
+   ```bash
+   cd fttx-manager
+   git pull
+   docker compose up -d --build
+   ```
+
+Assim que o comando terminar, o sistema estará atualizado com as correções de conexão! 🚀
+
+---
 
 > [!TIP]
 > Também incluí scripts de automação: `update.bat` (Windows) e `update.sh` (Linux), caso decida rodar fora do Docker no futuro.
