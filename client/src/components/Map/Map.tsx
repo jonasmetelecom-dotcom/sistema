@@ -90,23 +90,26 @@ const getSnappedPosition = (
 const MapResizer = () => {
     const map = useMap();
     useEffect(() => {
-        const resizeObserver = new ResizeObserver(() => {
-            map.invalidateSize();
-        });
+        let resizeTimer: ReturnType<typeof setTimeout>;
+        const handleResize = () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                map.invalidateSize();
+            }, 300);
+        };
 
+        const resizeObserver = new ResizeObserver(handleResize);
         const container = map.getContainer();
         if (container) {
             resizeObserver.observe(container);
         }
 
-        // Initial invalidate
-        const timer = setTimeout(() => {
-            map.invalidateSize();
-        }, 500);
+        // Initial check
+        handleResize();
 
         return () => {
             resizeObserver.disconnect();
-            clearTimeout(timer);
+            clearTimeout(resizeTimer);
         };
     }, [map]);
     return null;
@@ -440,7 +443,8 @@ const Map = () => {
         try {
             const response = await api.get(`/projects/${projectId}`);
             const { latitude, longitude } = response.data || {};
-            if (latitude != null && longitude != null) {
+            // Precise check for valid numbers including 0
+            if (typeof latitude === 'number' && typeof longitude === 'number' && !isNaN(latitude) && !isNaN(longitude)) {
                 setCenter([latitude, longitude]);
             }
         } catch (error) {
@@ -920,14 +924,18 @@ const Map = () => {
                 {cableStart ? 'Clique para continuar o cabo (ESC para cancelar)' : 'Clique no ponto inicial'}
             </div>
 
-            <div ref={mapRef} className="w-full h-full">
+            <div ref={mapRef} className="w-full h-full bg-gray-900 overflow-hidden">
                 <MapContainer
-                    key={projectId || 'none'}
                     center={defaultCenter}
                     zoom={13}
                     zoomControl={false}
                     className="w-full h-full"
-                    style={{ height: '100%', width: '100%', cursor: activeTool !== 'select' ? 'crosshair' : 'grab' }}
+                    style={{
+                        height: '100%',
+                        width: '100%',
+                        cursor: activeTool !== 'select' ? 'crosshair' : 'grab',
+                        background: '#111827' // Matching gray-900
+                    }}
                 >
                     <LayersControl position="topright">
                         <LayersControl.BaseLayer checked name="OpenStreetMap">
