@@ -16,11 +16,10 @@ interface SidebarPropertiesProps {
     onUpdate: () => void;
     onOpenInternals?: (id: string) => void;
     onTrace?: (elementId: string, fiberIndex: number) => void;
-    onOTDR?: (distance: number) => void;
     onDelete?: (id: string, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs') => void;
 }
 
-export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onOpenInternals, onTrace, onOTDR, onDelete }: SidebarPropertiesProps) => {
+export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onOpenInternals, onTrace, onDelete }: SidebarPropertiesProps) => {
     const [formData, setFormData] = useState<any>({});
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'general' | 'engineering'>('general');
