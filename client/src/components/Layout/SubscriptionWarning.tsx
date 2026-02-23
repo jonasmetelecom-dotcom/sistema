@@ -1,5 +1,5 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { AlertTriangle, Clock, ShieldAlert, XCircle } from 'lucide-react';
+import { AlertTriangle, Clock, ShieldAlert } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export const SubscriptionWarning = () => {
