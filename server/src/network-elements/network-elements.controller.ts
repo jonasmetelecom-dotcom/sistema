@@ -29,10 +29,6 @@ export class NetworkElementsController {
     return this.networkElementsService.findAllByProject(projectId, req.user);
   }
 
-  @Delete('project/:projectId')
-  removeAllByProject(@Param('projectId') projectId: string) {
-    return this.networkElementsService.removeAllByProject(projectId);
-  }
 
   @Post('poles')
   createPole(@Body() data: Partial<Pole>) {

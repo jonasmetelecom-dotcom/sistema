@@ -136,17 +136,8 @@ export class NetworkElementsService {
     return this.polesRepository.restore(id);
   }
 
-  async deleteOnu(id: string) {
-    return this.onusRepository.softDelete(id);
-  }
-
   async restoreOnu(id: string) {
     return this.onusRepository.restore(id);
-  }
-
-  async deleteRbs(id: string, user?: any) {
-    // If we have radio specific logic, it goes here
-    return this.rbsRepository.softDelete(id);
   }
 
   async restoreRbs(id: string, user?: any) {
@@ -673,7 +664,7 @@ export class NetworkElementsService {
       entityId: id,
       tenantId: user.tenantId,
     });
-    return this.rbsRepository.remove(rbs);
+    return this.rbsRepository.softDelete(id);
   }
 
   async updateRbs(id: string, data: Partial<Rbs>, user: any) {
@@ -982,7 +973,7 @@ export class NetworkElementsService {
   }
 
   async deleteOnu(id: string, tenantId: string) {
-    return this.onusRepository.delete({ id, tenantId });
+    return this.onusRepository.softDelete({ id, tenantId });
   }
 
   /**

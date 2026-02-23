@@ -248,6 +248,8 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
                         setCableStart(null);
                     }
                 }
+            } else if (activeTool === 'streetview') {
+                setStreetViewLocation(finalLatLng);
             } else if (activeTool === 'customer') {
                 try {
                     // 1. Create the ONU (Customer)
@@ -362,6 +364,7 @@ const Map = () => {
 
     const [showCoverage, setShowCoverage] = useState(false);
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
+    const [streetViewLocation, setStreetViewLocation] = useState<LatLng | null>(null);
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -541,98 +544,97 @@ const Map = () => {
         }
     }, [projectId, elements]);
 
-    // Reset cable start when tool changes
-    useEffect(() => {
-        setCableStart(null);
-        setTracedPath([]); // Reset trace when tool changes
-        setRulerPoints([]); // Reset ruler when tool changes
-    }, [activeTool]);
+    setCableStart(null);
+    setTracedPath([]); // Reset trace when tool changes
+    setRulerPoints([]); // Reset ruler when tool changes
+    if (activeTool !== 'streetview') setStreetViewLocation(null);
+}, [activeTool]);
 
-    const handleTrace = async (elementId: string, fiberIndex: number) => {
-        try {
-            const response = await api.get('/network-elements/trace-path', {
-                params: { elementId, fiberIndex }
-            });
-            if (Array.isArray(response.data)) {
-                setTracedPath(response.data);
-                console.log('Traced Path:', response.data);
-            } else {
-                console.error('Invalid trace response:', response.data);
-                alert('Erro: Resposta invÃ¡lida do servidor');
-                setTracedPath([]);
+const handleTrace = async (elementId: string, fiberIndex: number) => {
+    try {
+        const response = await api.get('/network-elements/trace-path', {
+            params: { elementId, fiberIndex }
+        });
+        if (Array.isArray(response.data)) {
+            setTracedPath(response.data);
+            console.log('Traced Path:', response.data);
+        } else {
+            console.error('Invalid trace response:', response.data);
+            alert('Erro: Resposta invÃ¡lida do servidor');
+            setTracedPath([]);
+        }
+    } catch (error) {
+        console.error('Error tracing path:', error);
+        alert('Erro ao rastrear caminho');
+    }
+};
+
+const handleOTDR = (distanceMeters: number) => {
+    if (!tracedPath || tracedPath.length === 0) {
+        alert('Primeiro faça o rastreio da fibra (Trace) para usar o OTDR.');
+        return;
+    }
+
+    let remainingDist = distanceMeters;
+    let found = false;
+
+    // Iterate through traced path elements
+    for (const item of tracedPath) {
+        if (item.type === 'cable') {
+            const cable = elements.cables.find(c => c.id === item.id);
+            if (!cable) continue;
+
+            const slack = cable.slack || 0;
+
+            if (remainingDist <= slack) {
+                // Break is in the slack
+                setOtdrPoint({
+                    point: new LatLng(cable.points[0].lat, cable.points[0].lng),
+                    distance: distanceMeters
+                });
+                setCenter([cable.points[0].lat, cable.points[0].lng]);
+                found = true;
+                break;
             }
-        } catch (error) {
-            console.error('Error tracing path:', error);
-            alert('Erro ao rastrear caminho');
-        }
-    };
 
-    const handleOTDR = (distanceMeters: number) => {
-        if (!tracedPath || tracedPath.length === 0) {
-            alert('Primeiro faça o rastreio da fibra (Trace) para usar o OTDR.');
-            return;
-        }
+            remainingDist -= slack;
 
-        let remainingDist = distanceMeters;
-        let found = false;
+            // Calculate length of this cable
+            for (let i = 0; i < cable.points.length - 1; i++) {
+                const p1 = new LatLng(cable.points[i].lat, cable.points[i].lng);
+                const p2 = new LatLng(cable.points[i + 1].lat, cable.points[i + 1].lng);
+                const segmentDist = p1.distanceTo(p2);
 
-        // Iterate through traced path elements
-        for (const item of tracedPath) {
-            if (item.type === 'cable') {
-                const cable = elements.cables.find(c => c.id === item.id);
-                if (!cable) continue;
+                if (remainingDist <= segmentDist) {
+                    // Break is in this segment!
+                    // Interpolate
+                    const ratio = remainingDist / segmentDist;
+                    const lat = p1.lat + (p2.lat - p1.lat) * ratio;
+                    const lng = p1.lng + (p2.lng - p1.lng) * ratio;
 
-                const slack = cable.slack || 0;
-
-                if (remainingDist <= slack) {
-                    // Break is in the slack
-                    setOtdrPoint({
-                        point: new LatLng(cable.points[0].lat, cable.points[0].lng),
-                        distance: distanceMeters
-                    });
-                    setCenter([cable.points[0].lat, cable.points[0].lng]);
+                    const point = new LatLng(lat, lng);
+                    setOtdrPoint({ point, distance: distanceMeters });
+                    setCenter([lat, lng]); // Fly to break
                     found = true;
                     break;
                 }
 
-                remainingDist -= slack;
-
-                // Calculate length of this cable
-                for (let i = 0; i < cable.points.length - 1; i++) {
-                    const p1 = new LatLng(cable.points[i].lat, cable.points[i].lng);
-                    const p2 = new LatLng(cable.points[i + 1].lat, cable.points[i + 1].lng);
-                    const segmentDist = p1.distanceTo(p2);
-
-                    if (remainingDist <= segmentDist) {
-                        // Break is in this segment!
-                        // Interpolate
-                        const ratio = remainingDist / segmentDist;
-                        const lat = p1.lat + (p2.lat - p1.lat) * ratio;
-                        const lng = p1.lng + (p2.lng - p1.lng) * ratio;
-
-                        const point = new LatLng(lat, lng);
-                        setOtdrPoint({ point, distance: distanceMeters });
-                        setCenter([lat, lng]); // Fly to break
-                        found = true;
-                        break;
-                    }
-
-                    remainingDist -= segmentDist;
-                }
-
-                if (found) break;
+                remainingDist -= segmentDist;
             }
-        }
 
-        if (!found) {
-            alert('A distância informada é maior que o comprimento total da rede iluminada.');
+            if (found) break;
         }
-    };
+    }
 
-    // Icons
-    const createIcon = (color: string, shape: 'circle' | 'square' = 'circle') => divIcon({
-        className: 'custom-icon',
-        html: `<div style="
+    if (!found) {
+        alert('A distância informada é maior que o comprimento total da rede iluminada.');
+    }
+};
+
+// Icons
+const createIcon = (color: string, shape: 'circle' | 'square' = 'circle') => divIcon({
+    className: 'custom-icon',
+    html: `<div style="
             background-color: ${color}; 
             width: ${shape === 'circle' ? '12px' : '14px'}; 
             height: ${shape === 'circle' ? '12px' : '14px'}; 
@@ -640,441 +642,441 @@ const Map = () => {
             border: 2px solid white; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         "></div>`,
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
-    });
+    iconSize: [12, 12],
+    iconAnchor: [6, 6]
+});
 
 
-    // Handlers
-    const handleElementClick = async (e: any, element: any, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs') => {
-        // Stop propagation to prevent map click event
-        if (e && e.originalEvent) {
-            e.originalEvent.stopPropagation();
-        }
+// Handlers
+const handleElementClick = async (e: any, element: any, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs') => {
+    // Stop propagation to prevent map click event
+    if (e && e.originalEvent) {
+        e.originalEvent.stopPropagation();
+    }
 
-        if (activeTool === 'ruler') {
-            if (e.originalEvent.button === 2 || e.type === 'contextmenu') {
-                // Right click/Context menu = UNDO
-                setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
-            } else {
-                // Left click = ADD POINT
-                if (element.latitude != null && element.longitude != null) {
-                    const latlng = { lat: element.latitude, lng: element.longitude } as LatLng;
-                    setRulerPoints((prev: LatLng[]) => [...prev, latlng]);
-                }
+    if (activeTool === 'ruler') {
+        if (e.originalEvent.button === 2 || e.type === 'contextmenu') {
+            // Right click/Context menu = UNDO
+            setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
+        } else {
+            // Left click = ADD POINT
+            if (element.latitude != null && element.longitude != null) {
+                const latlng = { lat: element.latitude, lng: element.longitude } as LatLng;
+                setRulerPoints((prev: LatLng[]) => [...prev, latlng]);
             }
-            return;
         }
+        return;
+    }
 
-        if (activeTool === 'select') {
-            setSelectedElement({ ...element, type });
+    if (activeTool === 'select') {
+        setSelectedElement({ ...element, type });
 
-            // Focus map on element
-            if (type === 'pole' || type === 'box' || type === 'onu' || type === 'rbs') {
-                if (element.latitude != null && element.longitude != null) {
-                    setBounds(null); // Clear bounds so center takes effect
-                    setCenter([element.latitude, element.longitude]);
-                }
-            } else if (type === 'cable') {
-                setCenter(null);
-                if (element.points && element.points.length > 0) {
-                    try {
-                        const cableBounds = L.latLngBounds(element.points);
-                        if (cableBounds.isValid()) {
-                            setBounds(cableBounds);
-                        }
-                    } catch (err) {
-                        console.error('Error calculating cable bounds', err);
-                    }
-                }
+        // Focus map on element
+        if (type === 'pole' || type === 'box' || type === 'onu' || type === 'rbs') {
+            if (element.latitude != null && element.longitude != null) {
+                setBounds(null); // Clear bounds so center takes effect
+                setCenter([element.latitude, element.longitude]);
             }
-
-        } else if (activeTool === 'cable') {
-            if (element.latitude == null || element.longitude == null) return;
-            const latlng = { lat: element.latitude, lng: element.longitude } as LatLng;
-
-            if (!cableStart) {
-                // Start cable from this element
-                setCableStart({ latlng, elementId: element.id, elementType: type });
-            } else {
-                // Finish cable at this element AND START NEXT SEGMENT
-                if (cableStart.elementId === element.id) {
-                    console.warn('Cannot connect cable to itself (Self-Loop detected)');
-                    return;
-                }
-
+        } else if (type === 'cable') {
+            setCenter(null);
+            if (element.points && element.points.length > 0) {
                 try {
-                    await api.post('/network-elements/cables', {
-                        projectId,
-                        type: cableSettings.type,
-                        fiberCount: cableSettings.fiberCount,
-                        points: [
-                            { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
-                            { lat: latlng.lat, lng: latlng.lng }
-                        ],
-                        fromId: cableStart.elementId,
-                        fromType: cableStart.elementType,
-                        toId: element.id,
-                        toType: type
-                    });
-
-                    // CONTINUOUS MODE: Set the start of the next cable to be the end of this one
-                    setCableStart({ latlng, elementId: element.id, elementType: type });
-
-                    fetchElements();
-                } catch (error) {
-                    console.error('Error creating connected cable:', error);
-                    setCableStart(null);
+                    const cableBounds = L.latLngBounds(element.points);
+                    if (cableBounds.isValid()) {
+                        setBounds(cableBounds);
+                    }
+                } catch (err) {
+                    console.error('Error calculating cable bounds', err);
                 }
             }
         }
-    };
 
-    const handleClearProject = async () => {
-        if (!projectId) return;
-        try {
-            await api.delete(`/network-elements/project/${projectId}`);
-            fetchElements();
-            alert('Projeto limpo com sucesso!');
-        } catch (error) {
-            console.error('Error clearing project:', error);
-            alert('Erro ao limpar projeto.');
+    } else if (activeTool === 'cable') {
+        if (element.latitude == null || element.longitude == null) return;
+        const latlng = { lat: element.latitude, lng: element.longitude } as LatLng;
+
+        if (!cableStart) {
+            // Start cable from this element
+            setCableStart({ latlng, elementId: element.id, elementType: type });
+        } else {
+            // Finish cable at this element AND START NEXT SEGMENT
+            if (cableStart.elementId === element.id) {
+                console.warn('Cannot connect cable to itself (Self-Loop detected)');
+                return;
+            }
+
+            try {
+                await api.post('/network-elements/cables', {
+                    projectId,
+                    type: cableSettings.type,
+                    fiberCount: cableSettings.fiberCount,
+                    points: [
+                        { lat: cableStart.latlng.lat, lng: cableStart.latlng.lng },
+                        { lat: latlng.lat, lng: latlng.lng }
+                    ],
+                    fromId: cableStart.elementId,
+                    fromType: cableStart.elementType,
+                    toId: element.id,
+                    toType: type
+                });
+
+                // CONTINUOUS MODE: Set the start of the next cable to be the end of this one
+                setCableStart({ latlng, elementId: element.id, elementType: type });
+
+                fetchElements();
+            } catch (error) {
+                console.error('Error creating connected cable:', error);
+                setCableStart(null);
+            }
         }
-    };
+    }
+};
+
+const handleClearProject = async () => {
+    if (!projectId) return;
+    try {
+        await api.delete(`/network-elements/project/${projectId}`);
+        fetchElements();
+        alert('Projeto limpo com sucesso!');
+    } catch (error) {
+        console.error('Error clearing project:', error);
+        alert('Erro ao limpar projeto.');
+    }
+};
 
 
-    const handleSearch = (query: string) => {
-        setSearchQuery(query);
-        if (!query.trim()) {
-            setSearchResults([]);
-            return;
-        }
+const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+        setSearchResults([]);
+        return;
+    }
 
-        if (!elements) return;
+    if (!elements) return;
 
-        const q = query.toLowerCase();
-        const results = [
-            ...(elements.poles || []).map(p => ({ ...p, resultType: 'pole' })),
-            ...(elements.boxes || []).map(b => ({ ...b, resultType: 'box' })),
-            ...(elements.onus || []).map(o => ({ ...o, resultType: 'onu' })),
-            ...(elements.rbs || []).map(r => ({ ...r, resultType: 'rbs' }))
-        ].filter(item =>
-            (item.id && item.id.toLowerCase().includes(q)) ||
-            (item.name && item.name.toLowerCase().includes(q)) ||
-            (item.serialNumber && item.serialNumber.toLowerCase().includes(q))
-        ).slice(0, 10);
+    const q = query.toLowerCase();
+    const results = [
+        ...(elements.poles || []).map(p => ({ ...p, resultType: 'pole' })),
+        ...(elements.boxes || []).map(b => ({ ...b, resultType: 'box' })),
+        ...(elements.onus || []).map(o => ({ ...o, resultType: 'onu' })),
+        ...(elements.rbs || []).map(r => ({ ...r, resultType: 'rbs' }))
+    ].filter(item =>
+        (item.id && item.id.toLowerCase().includes(q)) ||
+        (item.name && item.name.toLowerCase().includes(q)) ||
+        (item.serialNumber && item.serialNumber.toLowerCase().includes(q))
+    ).slice(0, 10);
 
-        setSearchResults(results);
-    };
+    setSearchResults(results);
+};
 
-    const handleJumpTo = (item: any) => {
-        if (item.latitude != null && item.longitude != null) {
-            setFlyToTarget(new LatLng(item.latitude, item.longitude));
-            setSelectedElement({ ...item, type: item.resultType });
-            setIsSearchOpen(false);
-            setSearchQuery('');
-            setSearchResults([]);
+const handleJumpTo = (item: any) => {
+    if (item.latitude != null && item.longitude != null) {
+        setFlyToTarget(new LatLng(item.latitude, item.longitude));
+        setSelectedElement({ ...item, type: item.resultType });
+        setIsSearchOpen(false);
+        setSearchQuery('');
+        setSearchResults([]);
 
-            setTimeout(() => setFlyToTarget(null), 2000);
-        }
-    };
+        setTimeout(() => setFlyToTarget(null), 2000);
+    }
+};
 
 
-    return (
-        <div className="flex-1 relative h-full w-full">
-            {loading && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-pulse">
-                    <RefreshCw size={14} className="animate-spin" />
-                    Atualizando Mapa...
-                </div>
-            )}
+return (
+    <div className="flex-1 relative h-full w-full">
+        {loading && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-pulse">
+                <RefreshCw size={14} className="animate-spin" />
+                Atualizando Mapa...
+            </div>
+        )}
 
-            {error && (
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-red-600/90 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-                    <AlertTriangle size={20} />
-                    <span>{error}</span>
-                    <button
-                        onClick={() => fetchElements()}
-                        className="bg-white/20 hover:bg-white/30 p-1.5 rounded-lg transition-colors"
-                    >
-                        <RefreshCw size={16} />
-                    </button>
-                </div>
-            )}
+        {error && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-red-600/90 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+                <AlertTriangle size={20} />
+                <span>{error}</span>
+                <button
+                    onClick={() => fetchElements()}
+                    className="bg-white/20 hover:bg-white/30 p-1.5 rounded-lg transition-colors"
+                >
+                    <RefreshCw size={16} />
+                </button>
+            </div>
+        )}
 
-            <NetworkToolbar
-                activeTool={activeTool}
-                onToolChange={setActiveTool}
-                cableSettings={cableSettings}
-                onCableSettingsChange={setCableSettings}
-                boxSettings={boxSettings}
-                onBoxSettingsChange={setBoxSettings}
-                onImportExport={() => setIsImportExportOpen(true)}
-                onClearProject={handleClearProject}
-                onToggleInventory={() => setShowInventory(!showInventory)}
-                onOpenMetrics={() => setShowMetrics(true)}
-                onOpenMemorial={handleOpenMemorial}
-                showInventory={showInventory}
-                showCoverage={showCoverage}
-                onToggleCoverage={() => setShowCoverage(!showCoverage)}
-                readOnly={readOnly}
-            />
+        <NetworkToolbar
+            activeTool={activeTool}
+            onToolChange={setActiveTool}
+            cableSettings={cableSettings}
+            onCableSettingsChange={setCableSettings}
+            boxSettings={boxSettings}
+            onBoxSettingsChange={setBoxSettings}
+            onImportExport={() => setIsImportExportOpen(true)}
+            onClearProject={handleClearProject}
+            onToggleInventory={() => setShowInventory(!showInventory)}
+            onOpenMetrics={() => setShowMetrics(true)}
+            onOpenMemorial={handleOpenMemorial}
+            showInventory={showInventory}
+            showCoverage={showCoverage}
+            onToggleCoverage={() => setShowCoverage(!showCoverage)}
+            readOnly={readOnly}
+        />
 
-            {/* Search Tool Overlay */}
-            <div className="absolute top-4 right-16 z-[1000] flex flex-col items-end gap-2">
-                <div className={`flex items-center bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 ${isSearchOpen ? 'w-64 px-4 py-2' : 'w-12 h-12 justify-center'}`}>
-                    {isSearchOpen ? (
-                        <div className="flex items-center gap-2 w-full">
-                            <Search size={18} className="text-blue-400 shrink-0" />
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder="Buscar componente..."
-                                className="bg-transparent border-none outline-none text-white text-sm w-full"
-                                value={searchQuery}
-                                onChange={(e) => handleSearch(e.target.value)}
-                            />
-                            <button onClick={() => setIsSearchOpen(false)} className="text-gray-500 hover:text-white shrink-0">
-                                <X size={16} />
-                            </button>
-                        </div>
-                    ) : (
-                        <button onClick={() => setIsSearchOpen(true)} className="w-full h-full flex items-center justify-center text-blue-400 hover:text-blue-300">
-                            <Search size={22} />
+        {/* Search Tool Overlay */}
+        <div className="absolute top-4 right-16 z-[1000] flex flex-col items-end gap-2">
+            <div className={`flex items-center bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl transition-all duration-300 ${isSearchOpen ? 'w-64 px-4 py-2' : 'w-12 h-12 justify-center'}`}>
+                {isSearchOpen ? (
+                    <div className="flex items-center gap-2 w-full">
+                        <Search size={18} className="text-blue-400 shrink-0" />
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Buscar componente..."
+                            className="bg-transparent border-none outline-none text-white text-sm w-full"
+                            value={searchQuery}
+                            onChange={(e) => handleSearch(e.target.value)}
+                        />
+                        <button onClick={() => setIsSearchOpen(false)} className="text-gray-500 hover:text-white shrink-0">
+                            <X size={16} />
                         </button>
-                    )}
-                </div>
-
-                {isSearchOpen && searchResults.length > 0 && (
-                    <div className="w-64 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2">
-                        {searchResults.map((result) => (
-                            <button
-                                key={`${result.resultType}-${result.id}`}
-                                onClick={() => handleJumpTo(result)}
-                                className="w-full p-3 flex items-center gap-3 hover:bg-gray-800 border-b border-gray-800 text-left transition-colors group"
-                            >
-                                <div className={`p-2 rounded-lg ${result.resultType === 'pole' ? 'bg-yellow-500/20 text-yellow-500' : result.resultType === 'onu' ? 'bg-cyan-500/20 text-cyan-500' : result.resultType === 'rbs' ? 'bg-purple-500/20 text-purple-500' : 'bg-green-500/20 text-green-500'}`}>
-                                    {result.resultType === 'pole' ? <Zap size={14} /> : result.resultType === 'onu' ? <Home size={14} /> : result.resultType === 'rbs' ? <Radio size={14} /> : <Box size={14} />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-white uppercase truncate">
-                                        {result.name || `${result.resultType.toUpperCase()} - ${result.id.slice(0, 8)}`}
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 truncate">
-                                        {result.serialNumber ? `SN: ${result.serialNumber}` : `ID: ${result.id.slice(0, 12)}...`}
-                                    </div>
-                                </div>
-                                <ZoomIn size={14} className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
-                        ))}
                     </div>
+                ) : (
+                    <button onClick={() => setIsSearchOpen(true)} className="w-full h-full flex items-center justify-center text-blue-400 hover:text-blue-300">
+                        <Search size={22} />
+                    </button>
                 )}
             </div>
-            <SidebarProperties
-                element={selectedElement}
-                elementType={selectedElement?.type || null}
-                onClose={() => setSelectedElement(null)}
-                onUpdate={() => {
-                    fetchElements();
-                    setSelectedElement(null);
-                }}
-                onOpenInternals={(id) => setViewingBoxId(id)}
-                onTrace={handleTrace}
-                onOTDR={handleOTDR}
-                onDelete={handleDelete}
+
+            {isSearchOpen && searchResults.length > 0 && (
+                <div className="w-64 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                    {searchResults.map((result) => (
+                        <button
+                            key={`${result.resultType}-${result.id}`}
+                            onClick={() => handleJumpTo(result)}
+                            className="w-full p-3 flex items-center gap-3 hover:bg-gray-800 border-b border-gray-800 text-left transition-colors group"
+                        >
+                            <div className={`p-2 rounded-lg ${result.resultType === 'pole' ? 'bg-yellow-500/20 text-yellow-500' : result.resultType === 'onu' ? 'bg-cyan-500/20 text-cyan-500' : result.resultType === 'rbs' ? 'bg-purple-500/20 text-purple-500' : 'bg-green-500/20 text-green-500'}`}>
+                                {result.resultType === 'pole' ? <Zap size={14} /> : result.resultType === 'onu' ? <Home size={14} /> : result.resultType === 'rbs' ? <Radio size={14} /> : <Box size={14} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-white uppercase truncate">
+                                    {result.name || `${result.resultType.toUpperCase()} - ${result.id.slice(0, 8)}`}
+                                </div>
+                                <div className="text-[10px] text-gray-400 truncate">
+                                    {result.serialNumber ? `SN: ${result.serialNumber}` : `ID: ${result.id.slice(0, 12)}...`}
+                                </div>
+                            </div>
+                            <ZoomIn size={14} className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+        <SidebarProperties
+            element={selectedElement}
+            elementType={selectedElement?.type || null}
+            onClose={() => setSelectedElement(null)}
+            onUpdate={() => {
+                fetchElements();
+                setSelectedElement(null);
+            }}
+            onOpenInternals={(id) => setViewingBoxId(id)}
+            onTrace={handleTrace}
+            onOTDR={handleOTDR}
+            onDelete={handleDelete}
+        />
+
+        {viewingBoxId && (
+            <BoxInternals
+                boxId={viewingBoxId}
+                onClose={() => setViewingBoxId(null)}
             />
+        )}
 
-            {viewingBoxId && (
-                <BoxInternals
-                    boxId={viewingBoxId}
-                    onClose={() => setViewingBoxId(null)}
-                />
-            )}
+        {isImportExportOpen && projectId && (
+            <ImportExportModal
+                projectId={projectId}
+                onClose={() => setIsImportExportOpen(false)}
+                onImportSuccess={() => {
+                    fetchElements();
+                    setIsImportExportOpen(false);
+                }}
+            />
+        )}
 
-            {isImportExportOpen && projectId && (
-                <ImportExportModal
+        {showInventory && projectId && (
+            <InventoryOverlay
+                projectId={projectId}
+                onClose={() => setShowInventory(false)}
+            />
+        )}
+
+        {showMetrics && (
+            <ProjectMetricsModal
+                isOpen={showMetrics}
+                onClose={() => setShowMetrics(false)}
+                elements={elements}
+            />
+        )}
+
+        {showMemorial && projectId && (
+            <TechnicalMemorialModal
+                projectId={projectId}
+                onClose={() => setShowMemorial(false)}
+                mapImage={mapImage}
+            />
+        )}
+
+
+        {/* Instruction for Cable Tool */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] bg-black/80 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg pointer-events-none">
+            {cableStart ? 'Clique para continuar o cabo (ESC para cancelar)' : 'Clique no ponto inicial'}
+        </div>
+
+        <div ref={mapRef} className="w-full h-full bg-gray-900 overflow-hidden relative" style={{ minHeight: '400px' }}>
+            <MapContainer
+                key={projectId || 'none'}
+                center={DEFAULT_CENTER}
+                zoom={13}
+                zoomControl={false}
+                className="w-full h-full"
+                style={{
+                    height: '100%',
+                    width: '100%',
+                    cursor: activeTool !== 'select' ? 'crosshair' : 'grab',
+                    background: '#111827'
+                }}
+            >
+                <LayersControl position="topright">
+                    <LayersControl.BaseLayer checked name="OpenStreetMap">
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            maxNativeZoom={19}
+                            maxZoom={22}
+                        />
+                    </LayersControl.BaseLayer>
+                    <LayersControl.BaseLayer name="Satélite">
+                        <TileLayer
+                            attribution='&copy; Google Maps'
+                            url="https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}"
+                            maxNativeZoom={20}
+                            maxZoom={22}
+                        />
+                    </LayersControl.BaseLayer>
+                </LayersControl>
+                <ZoomControl position="bottomright" />
+                <MapResizer />
+                <MapController center={center} bounds={bounds} flyToTarget={flyToTarget} onCancel={() => setCableStart(null)} />
+                <MapEvents
+                    activeTool={activeTool}
                     projectId={projectId}
-                    onClose={() => setIsImportExportOpen(false)}
-                    onImportSuccess={() => {
-                        fetchElements();
-                        setIsImportExportOpen(false);
-                    }}
-                />
-            )}
-
-            {showInventory && projectId && (
-                <InventoryOverlay
-                    projectId={projectId}
-                    onClose={() => setShowInventory(false)}
-                />
-            )}
-
-            {showMetrics && (
-                <ProjectMetricsModal
-                    isOpen={showMetrics}
-                    onClose={() => setShowMetrics(false)}
+                    onElementCreated={fetchElements}
+                    cableStart={cableStart}
+                    setCableStart={setCableStart}
                     elements={elements}
+                    cableSettings={cableSettings}
+                    boxSettings={boxSettings}
+                    setRulerPoints={setRulerPoints}
                 />
-            )}
 
-            {showMemorial && projectId && (
-                <TechnicalMemorialModal
-                    projectId={projectId}
-                    onClose={() => setShowMemorial(false)}
-                    mapImage={mapImage}
-                />
-            )}
-
-
-            {/* Instruction for Cable Tool */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] bg-black/80 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg pointer-events-none">
-                {cableStart ? 'Clique para continuar o cabo (ESC para cancelar)' : 'Clique no ponto inicial'}
-            </div>
-
-            <div ref={mapRef} className="w-full h-full bg-gray-900 overflow-hidden relative" style={{ minHeight: '400px' }}>
-                <MapContainer
-                    key={projectId || 'none'}
-                    center={DEFAULT_CENTER}
-                    zoom={13}
-                    zoomControl={false}
-                    className="w-full h-full"
-                    style={{
-                        height: '100%',
-                        width: '100%',
-                        cursor: activeTool !== 'select' ? 'crosshair' : 'grab',
-                        background: '#111827'
-                    }}
-                >
-                    <LayersControl position="topright">
-                        <LayersControl.BaseLayer checked name="OpenStreetMap">
-                            <TileLayer
-                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                maxNativeZoom={19}
-                                maxZoom={22}
-                            />
-                        </LayersControl.BaseLayer>
-                        <LayersControl.BaseLayer name="Satélite">
-                            <TileLayer
-                                attribution='&copy; Google Maps'
-                                url="https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}"
-                                maxNativeZoom={20}
-                                maxZoom={22}
-                            />
-                        </LayersControl.BaseLayer>
-                    </LayersControl>
-                    <ZoomControl position="bottomright" />
-                    <MapResizer />
-                    <MapController center={center} bounds={bounds} flyToTarget={flyToTarget} onCancel={() => setCableStart(null)} />
-                    <MapEvents
-                        activeTool={activeTool}
-                        projectId={projectId}
-                        onElementCreated={fetchElements}
-                        cableStart={cableStart}
-                        setCableStart={setCableStart}
-                        elements={elements}
-                        cableSettings={cableSettings}
-                        boxSettings={boxSettings}
-                        setRulerPoints={setRulerPoints}
-                    />
-
-                    {/* Render Signal Coverage (Heatmap/Radius) */}
-                    {activeTool === 'heatmap' && elements.boxes
-                        .filter(b => b.type === 'cto' && b.latitude != null && b.longitude != null)
-                        .map(cto => (
-                            <Fragment key={`coverage-${cto.id}`}>
-                                {/* Outer Circle (Accepted/Red-ish) - 300m */}
-                                <Circle
-                                    center={[cto.latitude, cto.longitude]}
-                                    radius={300}
-                                    pathOptions={{
-                                        fillColor: '#ef4444',
-                                        fillOpacity: 0.1,
-                                        color: '#ef4444',
-                                        weight: 1,
-                                        dashArray: '5, 10'
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="text-xs p-1">
-                                            <div className="font-bold text-red-500 mb-1 leading-tight">ZONA LIMITE (300m)</div>
-                                            <div className="text-gray-400">Sinal estimado: ~ -28dBm</div>
-                                        </div>
-                                    </Popup>
-                                </Circle>
-                                {/* Inner Circle (Optimal/Green) - 150m */}
-                                <Circle
-                                    center={[cto.latitude, cto.longitude]}
-                                    radius={150}
-                                    pathOptions={{
-                                        fillColor: '#22c55e',
-                                        fillOpacity: 0.2,
-                                        color: '#22c55e',
-                                        weight: 1
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="text-xs p-1">
-                                            <div className="font-bold text-green-500 mb-1 leading-tight">ZONA ÓTIMA (150m)</div>
-                                            <div className="text-gray-400">Sinal estimado: &gt; -22dBm</div>
-                                        </div>
-                                    </Popup>
-                                </Circle>
-                            </Fragment>
-                        ))}
+                {/* Render Signal Coverage (Heatmap/Radius) */}
+                {activeTool === 'heatmap' && elements.boxes
+                    .filter(b => b.type === 'cto' && b.latitude != null && b.longitude != null)
+                    .map(cto => (
+                        <Fragment key={`coverage-${cto.id}`}>
+                            {/* Outer Circle (Accepted/Red-ish) - 300m */}
+                            <Circle
+                                center={[cto.latitude, cto.longitude]}
+                                radius={300}
+                                pathOptions={{
+                                    fillColor: '#ef4444',
+                                    fillOpacity: 0.1,
+                                    color: '#ef4444',
+                                    weight: 1,
+                                    dashArray: '5, 10'
+                                }}
+                            >
+                                <Popup>
+                                    <div className="text-xs p-1">
+                                        <div className="font-bold text-red-500 mb-1 leading-tight">ZONA LIMITE (300m)</div>
+                                        <div className="text-gray-400">Sinal estimado: ~ -28dBm</div>
+                                    </div>
+                                </Popup>
+                            </Circle>
+                            {/* Inner Circle (Optimal/Green) - 150m */}
+                            <Circle
+                                center={[cto.latitude, cto.longitude]}
+                                radius={150}
+                                pathOptions={{
+                                    fillColor: '#22c55e',
+                                    fillOpacity: 0.2,
+                                    color: '#22c55e',
+                                    weight: 1
+                                }}
+                            >
+                                <Popup>
+                                    <div className="text-xs p-1">
+                                        <div className="font-bold text-green-500 mb-1 leading-tight">ZONA ÓTIMA (150m)</div>
+                                        <div className="text-gray-400">Sinal estimado: &gt; -22dBm</div>
+                                    </div>
+                                </Popup>
+                            </Circle>
+                        </Fragment>
+                    ))}
 
 
 
 
-                    {/* Render Cables */}
-                    {elements.cables.map(cable => {
-                        const isSelected = selectedElement?.id === cable.id && selectedElement?.type === 'cable';
-                        const color = isSelected ? '#f59e0b' :
-                            cable.type === 'as80' ? '#ef4444' : // Red
-                                cable.type === 'as120' ? '#b91c1c' : // Dark Red
-                                    cable.type === 'underground' ? '#8b5cf6' : // Violet
-                                        '#ec4899'; // Pink (Drop/Default)
+                {/* Render Cables */}
+                {elements.cables.map(cable => {
+                    const isSelected = selectedElement?.id === cable.id && selectedElement?.type === 'cable';
+                    const color = isSelected ? '#f59e0b' :
+                        cable.type === 'as80' ? '#ef4444' : // Red
+                            cable.type === 'as120' ? '#b91c1c' : // Dark Red
+                                cable.type === 'underground' ? '#8b5cf6' : // Violet
+                                    '#ec4899'; // Pink (Drop/Default)
 
-                        return (
-                            <div key={cable.id}>
-                                {cable.points && cable.points.length >= 2 && (
-                                    <>
-                                        <Polyline
-                                            positions={cable.points.filter((p: any) => p && p.lat != null && p.lng != null)}
-                                            pathOptions={{
-                                                color,
-                                                weight: isSelected ? 6 : cable.type === 'as120' ? 5 : 4,
-                                                opacity: 0.8,
-                                                dashArray: cable.type === 'underground' ? '5, 5' : undefined
-                                            }}
-                                            eventHandlers={{
-                                                click: async (e) => {
-                                                    handleElementClick(e, cable, 'cable');
-                                                }
-                                            }}
-                                        >
-                                            <Popup>
-                                                <div className="text-center">
-                                                    <div className="font-bold">Cabo: {cable.type.toUpperCase()}</div>
-                                                    <div className="text-xs text-gray-500">{cable.fiberCount} Fibras</div>
-                                                </div>
-                                            </Popup>
-                                        </Polyline>
+                    return (
+                        <div key={cable.id}>
+                            {cable.points && cable.points.length >= 2 && (
+                                <>
+                                    <Polyline
+                                        positions={cable.points.filter((p: any) => p && p.lat != null && p.lng != null)}
+                                        pathOptions={{
+                                            color,
+                                            weight: isSelected ? 6 : cable.type === 'as120' ? 5 : 4,
+                                            opacity: 0.8,
+                                            dashArray: cable.type === 'underground' ? '5, 5' : undefined
+                                        }}
+                                        eventHandlers={{
+                                            click: async (e) => {
+                                                handleElementClick(e, cable, 'cable');
+                                            }
+                                        }}
+                                    >
+                                        <Popup>
+                                            <div className="text-center">
+                                                <div className="font-bold">Cabo: {cable.type.toUpperCase()}</div>
+                                                <div className="text-xs text-gray-500">{cable.fiberCount} Fibras</div>
+                                            </div>
+                                        </Popup>
+                                    </Polyline>
 
-                                        {/* Cable Label at Midpoint */}
-                                        {(() => {
-                                            const pts = cable.points.filter((p: any) => p && p.lat != null && p.lng != null);
-                                            if (pts.length < 2) return null;
-                                            const midIdx = Math.floor(pts.length / 2);
-                                            const midPoint = pts[midIdx];
+                                    {/* Cable Label at Midpoint */}
+                                    {(() => {
+                                        const pts = cable.points.filter((p: any) => p && p.lat != null && p.lng != null);
+                                        if (pts.length < 2) return null;
+                                        const midIdx = Math.floor(pts.length / 2);
+                                        const midPoint = pts[midIdx];
 
-                                            return (
-                                                <Marker
-                                                    position={midPoint}
-                                                    interactive={false}
-                                                    icon={divIcon({
-                                                        className: 'cable-label',
-                                                        html: `
+                                        return (
+                                            <Marker
+                                                position={midPoint}
+                                                interactive={false}
+                                                icon={divIcon({
+                                                    className: 'cable-label',
+                                                    html: `
                                                                 <div style="
                                                                     background-color: rgba(0,0,0,0.7); 
                                                                     color: white; 
@@ -1089,424 +1091,462 @@ const Map = () => {
                                                                     ${cable.fiberCount}FO - ${cable.type.toUpperCase()}
                                                                 </div>
                                                             `,
-                                                        iconSize: [40, 14],
-                                                        iconAnchor: [20, 7]
-                                                    })}
-                                                />
-                                            );
-                                        })()}
-                                    </>
-                                )}
-
-                                {/* Draggable Points for Selected Cable */}
-                                {isSelected && cable.points && cable.points.map((point: LatLng, index: number) => {
-                                    if (point.lat == null || point.lng == null) return null;
-                                    return (
-                                        <Marker
-                                            key={`${cable.id}-point-${index}`}
-                                            position={point}
-                                            draggable={true}
-                                            icon={divIcon({
-                                                className: 'vertex-icon',
-                                                html: `<div style="background-color: white; width: 10px; height: 10px; border: 2px solid #f59e0b; border-radius: 50%;"></div>`,
-                                                iconSize: [10, 10],
-                                                iconAnchor: [5, 5]
-                                            })}
-                                            eventHandlers={{
-                                                dragend: async (e) => {
-                                                    const marker = e.target;
-                                                    const newLatLng = marker.getLatLng();
-
-                                                    // Update local state temporarily
-                                                    const newPoints = [...cable.points];
-                                                    newPoints[index] = newLatLng;
-
-                                                    // Update elements state to reflect change immediately
-                                                    const updatedCables = elements.cables.map(c =>
-                                                        c.id === cable.id ? { ...c, points: newPoints } : c
-                                                    );
-                                                    setElements({ ...elements, cables: updatedCables });
-
-                                                    // Persist to backend
-                                                    try {
-                                                        await api.patch(`/network-elements/cables/${cable.id}`, {
-                                                            points: newPoints
-                                                        });
-                                                        console.log('Cable geometry updated');
-                                                    } catch (error) {
-                                                        console.error('Error updating cable geometry:', error);
-                                                    }
-                                                },
-                                                click: (e) => {
-                                                    e.originalEvent.stopPropagation();
-                                                    if (activeTool === 'ruler') {
-                                                        setRulerPoints((prev: LatLng[]) => [...prev, point]);
-                                                    }
-                                                },
-                                                contextmenu: (e) => {
-                                                    e.originalEvent.stopPropagation();
-                                                    if (activeTool === 'ruler') {
-                                                        setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
-
-                    {/* Render Poles */}
-                    {elements.poles.map(pole => {
-                        if (pole.latitude == null || pole.longitude == null) return null;
-                        return (
-                            <Marker
-                                key={pole.id}
-                                position={[pole.latitude, pole.longitude]}
-                                icon={createIcon('#3b82f6', 'circle')}
-                                draggable={true}
-                                eventHandlers={{
-                                    click: (e) => handleElementClick(e, pole, 'pole'),
-                                    contextmenu: (e) => handleElementClick(e, pole, 'pole'),
-                                    dragend: async (e) => {
-                                        const marker = e.target;
-                                        const newLatLng = marker.getLatLng();
-
-                                        // Update local state
-                                        const updatedPoles = elements.poles.map(p =>
-                                            p.id === pole.id ? { ...p, latitude: newLatLng.lat, longitude: newLatLng.lng } : p
+                                                    iconSize: [40, 14],
+                                                    iconAnchor: [20, 7]
+                                                })}
+                                            />
                                         );
-                                        setElements({ ...elements, poles: updatedPoles });
-
-                                        // Persist to backend
-                                        try {
-                                            await api.patch(`/network-elements/poles/${pole.id}`, {
-                                                latitude: newLatLng.lat,
-                                                longitude: newLatLng.lng
-                                            });
-                                        } catch (error) {
-                                            console.error('Error moving pole:', error);
-                                        }
-                                    }
-                                }}
-                            >
-                                <Popup>Poste ID: {pole.id.slice(0, 8)}</Popup>
-                            </Marker>
-                        );
-                    })}
-
-                    {/* Render Boxes */}
-                    {elements.boxes.map(box => {
-                        if (box.latitude == null || box.longitude == null) return null;
-                        const isCTO = box.type === 'cto' || box.boxType === 'cto' || box.name?.toUpperCase().includes('CTO');
-
-                        return (
-                            <Fragment key={box.id}>
-                                {showCoverage && isCTO && (
-                                    <Circle
-                                        center={[box.latitude, box.longitude]}
-                                        radius={200}
-                                        pathOptions={{
-                                            color: '#3b82f6',
-                                            fillColor: '#3b82f6',
-                                            fillOpacity: 0.05,
-                                            weight: 1,
-                                            dashArray: '5, 10'
-                                        }}
-                                        interactive={false}
-                                    />
-                                )}
-                                <Marker
-                                    position={[box.latitude, box.longitude]}
-                                    icon={(() => {
-                                        const customers = (elements.ctoCustomers || []).filter(c => c.boxId === box.id);
-                                        const isFull = isCTO && customers.length >= (box.capacity || 16);
-                                        return getBoxIcon(box.type, box.name, isFull);
                                     })()}
-                                    draggable={true}
-                                    eventHandlers={{
-                                        click: (e) => handleElementClick(e, box, 'box'),
-                                        contextmenu: (e) => handleElementClick(e, box, 'box'),
-                                        dragend: async (e) => {
-                                            const marker = e.target;
-                                            const newLatLng = marker.getLatLng();
+                                </>
+                            )}
 
-                                            // Update local state
-                                            const updatedBoxes = elements.boxes.map(b =>
-                                                b.id === box.id ? { ...b, latitude: newLatLng.lat, longitude: newLatLng.lng } : b
-                                            );
-                                            setElements({ ...elements, boxes: updatedBoxes });
+                            {/* Draggable Points for Selected Cable */}
+                            {isSelected && cable.points && cable.points.map((point: LatLng, index: number) => {
+                                if (point.lat == null || point.lng == null) return null;
+                                return (
+                                    <Marker
+                                        key={`${cable.id}-point-${index}`}
+                                        position={point}
+                                        draggable={true}
+                                        icon={divIcon({
+                                            className: 'vertex-icon',
+                                            html: `<div style="background-color: white; width: 10px; height: 10px; border: 2px solid #f59e0b; border-radius: 50%;"></div>`,
+                                            iconSize: [10, 10],
+                                            iconAnchor: [5, 5]
+                                        })}
+                                        eventHandlers={{
+                                            dragend: async (e) => {
+                                                const marker = e.target;
+                                                const newLatLng = marker.getLatLng();
 
-                                            // Persist to backend
-                                            try {
-                                                await api.patch(`/network-elements/boxes/${box.id}`, {
-                                                    latitude: newLatLng.lat,
-                                                    longitude: newLatLng.lng
-                                                });
-                                            } catch (error) {
-                                                console.error('Error moving box:', error);
+                                                // Update local state temporarily
+                                                const newPoints = [...cable.points];
+                                                newPoints[index] = newLatLng;
+
+                                                // Update elements state to reflect change immediately
+                                                const updatedCables = elements.cables.map(c =>
+                                                    c.id === cable.id ? { ...c, points: newPoints } : c
+                                                );
+                                                setElements({ ...elements, cables: updatedCables });
+
+                                                // Persist to backend
+                                                try {
+                                                    await api.patch(`/network-elements/cables/${cable.id}`, {
+                                                        points: newPoints
+                                                    });
+                                                    console.log('Cable geometry updated');
+                                                } catch (error) {
+                                                    console.error('Error updating cable geometry:', error);
+                                                }
+                                            },
+                                            click: (e) => {
+                                                e.originalEvent.stopPropagation();
+                                                if (activeTool === 'ruler') {
+                                                    setRulerPoints((prev: LatLng[]) => [...prev, point]);
+                                                }
+                                            },
+                                            contextmenu: (e) => {
+                                                e.originalEvent.stopPropagation();
+                                                if (activeTool === 'ruler') {
+                                                    setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
+                                                }
                                             }
-                                        }
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="text-center">
-                                            <div className="font-bold">Caixa: {box.name || box.type.toUpperCase()}</div>
-                                            <div className="text-[10px] text-gray-500">{box.type.toUpperCase()}</div>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            </Fragment>
-                        );
-                    })}
-
-                    {/* Render RBS (Radio Base Stations) */}
-                    {(elements.rbs || []).map(rbs => {
-                        if (rbs.latitude == null || rbs.longitude == null) return null;
-                        return (
-                            <Fragment key={rbs.id}>
-                                {showCoverage && rbs.range > 0 && (
-                                    <Circle
-                                        center={[rbs.latitude, rbs.longitude]}
-                                        radius={rbs.range}
-                                        pathOptions={{ fillColor: '#a855f7', color: '#a855f7', fillOpacity: 0.1, weight: 1, dashArray: '5, 5' }}
+                                        }}
                                     />
-                                )}
-                                <Marker
-                                    position={[rbs.latitude, rbs.longitude]}
-                                    icon={getRadioIcon(rbs.status)}
-                                    draggable={true}
-                                    eventHandlers={{
-                                        click: (e) => handleElementClick(e, rbs, 'rbs'),
-                                        contextmenu: (e) => handleElementClick(e, rbs, 'rbs'),
-                                        dragend: async (e) => {
-                                            const marker = e.target;
-                                            const newLatLng = marker.getLatLng();
+                                );
+                            })}
+                        </div>
+                    );
+                })}
 
-                                            // Update local state
-                                            const updatedRbs = elements.rbs.map(r =>
-                                                r.id === rbs.id ? { ...r, latitude: newLatLng.lat, longitude: newLatLng.lng } : r
-                                            );
-                                            setElements({ ...elements, rbs: updatedRbs });
+                {/* Render Poles */}
+                {elements.poles.map(pole => {
+                    if (pole.latitude == null || pole.longitude == null) return null;
+                    return (
+                        <Marker
+                            key={pole.id}
+                            position={[pole.latitude, pole.longitude]}
+                            icon={createIcon('#3b82f6', 'circle')}
+                            draggable={true}
+                            eventHandlers={{
+                                click: (e) => handleElementClick(e, pole, 'pole'),
+                                contextmenu: (e) => handleElementClick(e, pole, 'pole'),
+                                dragend: async (e) => {
+                                    const marker = e.target;
+                                    const newLatLng = marker.getLatLng();
 
-                                            // Persist to backend
-                                            try {
-                                                await api.patch(`/network-elements/rbs/${rbs.id}`, {
-                                                    latitude: newLatLng.lat,
-                                                    longitude: newLatLng.lng
-                                                });
-                                            } catch (error) {
-                                                console.error('Error moving RBS:', error);
-                                            }
-                                        }
+                                    // Update local state
+                                    const updatedPoles = elements.poles.map(p =>
+                                        p.id === pole.id ? { ...p, latitude: newLatLng.lat, longitude: newLatLng.lng } : p
+                                    );
+                                    setElements({ ...elements, poles: updatedPoles });
+
+                                    // Persist to backend
+                                    try {
+                                        await api.patch(`/network-elements/poles/${pole.id}`, {
+                                            latitude: newLatLng.lat,
+                                            longitude: newLatLng.lng
+                                        });
+                                    } catch (error) {
+                                        console.error('Error moving pole:', error);
+                                    }
+                                }
+                            }}
+                        >
+                            <Popup>Poste ID: {pole.id.slice(0, 8)}</Popup>
+                        </Marker>
+                    );
+                })}
+
+                {/* Render Boxes */}
+                {elements.boxes.map(box => {
+                    if (box.latitude == null || box.longitude == null) return null;
+                    const isCTO = box.type === 'cto' || box.boxType === 'cto' || box.name?.toUpperCase().includes('CTO');
+
+                    return (
+                        <Fragment key={box.id}>
+                            {showCoverage && isCTO && (
+                                <Circle
+                                    center={[box.latitude, box.longitude]}
+                                    radius={200}
+                                    pathOptions={{
+                                        color: '#3b82f6',
+                                        fillColor: '#3b82f6',
+                                        fillOpacity: 0.05,
+                                        weight: 1,
+                                        dashArray: '5, 10'
                                     }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold text-purple-400">{rbs.name}</h3>
-                                            <p className="text-xs text-gray-400">Modelo: {rbs.model}</p>
-                                            <p className="text-xs text-gray-400">IP: {rbs.ipAddress}</p>
-                                            <p className={`text-xs font-bold ${rbs.status === 'online' ? 'text-green-500' : 'text-red-500'}`}>
-                                                Status: {rbs.status?.toUpperCase()}
-                                            </p>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            </Fragment>
-                        );
-                    })}
-
-                    {/* Render ONUs (Customers) */}
-                    {(elements.onus || []).map(onu => {
-                        if (onu.latitude == null || onu.longitude == null) return null;
-                        return (
+                                    interactive={false}
+                                />
+                            )}
                             <Marker
-                                key={onu.id}
-                                position={[onu.latitude, onu.longitude]}
-                                icon={getOnuIcon(onu.status)}
+                                position={[box.latitude, box.longitude]}
+                                icon={(() => {
+                                    const customers = (elements.ctoCustomers || []).filter(c => c.boxId === box.id);
+                                    const isFull = isCTO && customers.length >= (box.capacity || 16);
+                                    return getBoxIcon(box.type, box.name, isFull);
+                                })()}
                                 draggable={true}
                                 eventHandlers={{
-                                    click: (e) => handleElementClick(e, onu, 'onu'),
-                                    contextmenu: (e) => handleElementClick(e, onu, 'onu'),
+                                    click: (e) => handleElementClick(e, box, 'box'),
+                                    contextmenu: (e) => handleElementClick(e, box, 'box'),
                                     dragend: async (e) => {
                                         const marker = e.target;
                                         const newLatLng = marker.getLatLng();
 
                                         // Update local state
-                                        const updatedOnus = elements.onus.map(o =>
-                                            o.id === onu.id ? { ...o, latitude: newLatLng.lat, longitude: newLatLng.lng } : o
+                                        const updatedBoxes = elements.boxes.map(b =>
+                                            b.id === box.id ? { ...b, latitude: newLatLng.lat, longitude: newLatLng.lng } : b
                                         );
-                                        setElements({ ...elements, onus: updatedOnus });
+                                        setElements({ ...elements, boxes: updatedBoxes });
 
                                         // Persist to backend
                                         try {
-                                            await api.patch(`/network-elements/onus/${onu.id}`, {
+                                            await api.patch(`/network-elements/boxes/${box.id}`, {
                                                 latitude: newLatLng.lat,
                                                 longitude: newLatLng.lng
                                             });
                                         } catch (error) {
-                                            console.error('Error moving ONU:', error);
+                                            console.error('Error moving box:', error);
                                         }
                                     }
                                 }}
                             >
                                 <Popup>
                                     <div className="text-center">
-                                        <div className="font-bold text-xs">Cliente: {onu.name || 'Sem Nome'}</div>
-                                        <div className="text-[10px] text-gray-500">
-                                            Status: {onu.status === 'planned' ? 'Planejado' : onu.status}
-                                        </div>
+                                        <div className="font-bold">Caixa: {box.name || box.type.toUpperCase()}</div>
+                                        <div className="text-[10px] text-gray-500">{box.type.toUpperCase()}</div>
                                     </div>
                                 </Popup>
                             </Marker>
-                        );
-                    })}
+                        </Fragment>
+                    );
+                })}
 
-                    {/* Render Traced Path (Overlay - AFTER elements to ensure visibility) */}
-                    {(tracedPath || []).map((item, idx) => {
-                        if (item.type === 'cable') {
-                            const cable = elements.cables.find(c => c.id === item.id);
-                            if (!cable) return null;
-                            return (
-                                <Polyline
-                                    key={`trace-${idx}`}
-                                    positions={cable.points}
-                                    pathOptions={{
-                                        color: '#ffff00', // Bright Yellow
-                                        weight: 8,
-                                        opacity: 0.8,
-                                        lineCap: 'round',
-                                        lineJoin: 'round',
-                                        dashArray: '1, 10' // Dotted glow effect
-                                    }}
+                {/* Render RBS (Radio Base Stations) */}
+                {(elements.rbs || []).map(rbs => {
+                    if (rbs.latitude == null || rbs.longitude == null) return null;
+                    return (
+                        <Fragment key={rbs.id}>
+                            {showCoverage && rbs.range > 0 && (
+                                <Circle
+                                    center={[rbs.latitude, rbs.longitude]}
+                                    radius={rbs.range}
+                                    pathOptions={{ fillColor: '#a855f7', color: '#a855f7', fillOpacity: 0.1, weight: 1, dashArray: '5, 5' }}
                                 />
-                            );
-                        }
-                        return null;
-                    })}
+                            )}
+                            <Marker
+                                position={[rbs.latitude, rbs.longitude]}
+                                icon={getRadioIcon(rbs.status)}
+                                draggable={true}
+                                eventHandlers={{
+                                    click: (e) => handleElementClick(e, rbs, 'rbs'),
+                                    contextmenu: (e) => handleElementClick(e, rbs, 'rbs'),
+                                    dragend: async (e) => {
+                                        const marker = e.target;
+                                        const newLatLng = marker.getLatLng();
 
-                    {/* OTDR Break Point Marker */}
-                    {otdrPoint && (
-                        <Marker
-                            position={otdrPoint.point}
-                            icon={divIcon({
-                                className: 'otdr-icon',
-                                html: `<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; animation: pulse 1s infinite;"></div>`,
-                                iconSize: [20, 20],
-                                iconAnchor: [10, 10]
-                            })}
-                        >
-                            <Popup autoClose={false} closeOnClick={false}>
-                                <div className="text-center">
-                                    <div className="font-bold text-red-600 mb-1">ROMPIMENTO DETECTADO</div>
-                                    <div className="text-xs font-mono bg-gray-100 p-1 rounded border border-gray-300">
-                                        Distância: {otdrPoint.distance.toFixed(2)}m
+                                        // Update local state
+                                        const updatedRbs = elements.rbs.map(r =>
+                                            r.id === rbs.id ? { ...r, latitude: newLatLng.lat, longitude: newLatLng.lng } : r
+                                        );
+                                        setElements({ ...elements, rbs: updatedRbs });
+
+                                        // Persist to backend
+                                        try {
+                                            await api.patch(`/network-elements/rbs/${rbs.id}`, {
+                                                latitude: newLatLng.lat,
+                                                longitude: newLatLng.lng
+                                            });
+                                        } catch (error) {
+                                            console.error('Error moving RBS:', error);
+                                        }
+                                    }
+                                }}
+                            >
+                                <Popup>
+                                    <div className="p-2">
+                                        <h3 className="font-bold text-purple-400">{rbs.name}</h3>
+                                        <p className="text-xs text-gray-400">Modelo: {rbs.model}</p>
+                                        <p className="text-xs text-gray-400">IP: {rbs.ipAddress}</p>
+                                        <p className={`text-xs font-bold ${rbs.status === 'online' ? 'text-green-500' : 'text-red-500'}`}>
+                                            Status: {rbs.status?.toUpperCase()}
+                                        </p>
                                     </div>
-                                    <div className="text-[10px] text-gray-500 mt-1">(OTDR)</div>
+                                </Popup>
+                            </Marker>
+                        </Fragment>
+                    );
+                })}
+
+                {/* Render ONUs (Customers) */}
+                {(elements.onus || []).map(onu => {
+                    if (onu.latitude == null || onu.longitude == null) return null;
+                    return (
+                        <Marker
+                            key={onu.id}
+                            position={[onu.latitude, onu.longitude]}
+                            icon={getOnuIcon(onu.status)}
+                            draggable={true}
+                            eventHandlers={{
+                                click: (e) => handleElementClick(e, onu, 'onu'),
+                                contextmenu: (e) => handleElementClick(e, onu, 'onu'),
+                                dragend: async (e) => {
+                                    const marker = e.target;
+                                    const newLatLng = marker.getLatLng();
+
+                                    // Update local state
+                                    const updatedOnus = elements.onus.map(o =>
+                                        o.id === onu.id ? { ...o, latitude: newLatLng.lat, longitude: newLatLng.lng } : o
+                                    );
+                                    setElements({ ...elements, onus: updatedOnus });
+
+                                    // Persist to backend
+                                    try {
+                                        await api.patch(`/network-elements/onus/${onu.id}`, {
+                                            latitude: newLatLng.lat,
+                                            longitude: newLatLng.lng
+                                        });
+                                    } catch (error) {
+                                        console.error('Error moving ONU:', error);
+                                    }
+                                }
+                            }}
+                        >
+                            <Popup>
+                                <div className="text-center">
+                                    <div className="font-bold text-xs">Cliente: {onu.name || 'Sem Nome'}</div>
+                                    <div className="text-[10px] text-gray-500">
+                                        Status: {onu.status === 'planned' ? 'Planejado' : onu.status}
+                                    </div>
                                 </div>
                             </Popup>
                         </Marker>
-                    )}
+                    );
+                })}
 
-                    {/* Ruler Rendering */}
-                    {rulerPoints.length > 0 && (
-                        <>
+                {/* Render Traced Path (Overlay - AFTER elements to ensure visibility) */}
+                {(tracedPath || []).map((item, idx) => {
+                    if (item.type === 'cable') {
+                        const cable = elements.cables.find(c => c.id === item.id);
+                        if (!cable) return null;
+                        return (
                             <Polyline
-                                positions={rulerPoints}
-                                pathOptions={{ color: '#ffffff', weight: 4, dashArray: '10, 10', opacity: 0.8 }}
-                                interactive={false}
+                                key={`trace-${idx}`}
+                                positions={cable.points}
+                                pathOptions={{
+                                    color: '#ffff00', // Bright Yellow
+                                    weight: 8,
+                                    opacity: 0.8,
+                                    lineCap: 'round',
+                                    lineJoin: 'round',
+                                    dashArray: '1, 10' // Dotted glow effect
+                                }}
                             />
-                            {rulerPoints.map((p, i) => (
-                                <Marker
-                                    key={`ruler-p-${i}`}
-                                    position={p}
-                                    interactive={false}
-                                    icon={divIcon({
-                                        className: 'ruler-marker',
-                                        html: `<div style="background-color: white; width: 8px; height: 8px; border: 2px solid black; border-radius: 50%;"></div>`,
-                                        iconSize: [8, 8],
-                                        iconAnchor: [4, 4]
-                                    })}
-                                />
-                            ))}
-                            {rulerPoints.length >= 2 && (() => {
-                                let totalDist = 0;
-                                const labels = [];
-                                for (let i = 1; i < rulerPoints.length; i++) {
-                                    const prev = rulerPoints[i - 1];
-                                    const current = rulerPoints[i];
-                                    const dist = prev.distanceTo(current);
-                                    totalDist += dist;
+                        );
+                    }
+                    return null;
+                })}
 
-                                    const midLat = (prev.lat + current.lat) / 2;
-                                    const midLng = (prev.lng + current.lng) / 2;
+                {/* OTDR Break Point Marker */}
+                {otdrPoint && (
+                    <Marker
+                        position={otdrPoint.point}
+                        icon={divIcon({
+                            className: 'otdr-icon',
+                            html: `<div style="background-color: red; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; animation: pulse 1s infinite;"></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })}
+                    >
+                        <Popup autoClose={false} closeOnClick={false}>
+                            <div className="text-center">
+                                <div className="font-bold text-red-600 mb-1">ROMPIMENTO DETECTADO</div>
+                                <div className="text-xs font-mono bg-gray-100 p-1 rounded border border-gray-300">
+                                    Distância: {otdrPoint.distance.toFixed(2)}m
+                                </div>
+                                <div className="text-[10px] text-gray-500 mt-1">(OTDR)</div>
+                            </div>
+                        </Popup>
+                    </Marker>
+                )}
 
+                {/* Ruler Rendering */}
+                {rulerPoints.length > 0 && (
+                    <>
+                        <Polyline
+                            positions={rulerPoints}
+                            pathOptions={{ color: '#ffffff', weight: 4, dashArray: '10, 10', opacity: 0.8 }}
+                            interactive={false}
+                        />
+                        {rulerPoints.map((p, i) => (
+                            <Marker
+                                key={`ruler-p-${i}`}
+                                position={p}
+                                interactive={false}
+                                icon={divIcon({
+                                    className: 'ruler-marker',
+                                    html: `<div style="background-color: white; width: 8px; height: 8px; border: 2px solid black; border-radius: 50%;"></div>`,
+                                    iconSize: [8, 8],
+                                    iconAnchor: [4, 4]
+                                })}
+                            />
+                        ))}
+                        {rulerPoints.length >= 2 && (() => {
+                            let totalDist = 0;
+                            const labels = [];
+                            for (let i = 1; i < rulerPoints.length; i++) {
+                                const prev = rulerPoints[i - 1];
+                                const current = rulerPoints[i];
+                                const dist = prev.distanceTo(current);
+                                totalDist += dist;
+
+                                const midLat = (prev.lat + current.lat) / 2;
+                                const midLng = (prev.lng + current.lng) / 2;
+
+                                labels.push(
+                                    <Marker
+                                        key={`ruler-label-${i}`}
+                                        position={[midLat, midLng]}
+                                        interactive={false}
+                                        icon={divIcon({
+                                            className: 'ruler-label',
+                                            html: `<div style="background-color: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap;">${dist.toFixed(1)}m</div>`,
+                                            iconSize: [40, 20],
+                                            iconAnchor: [20, 10]
+                                        })}
+                                    />
+                                );
+
+                                // If last point, add total label
+                                if (i === rulerPoints.length - 1) {
                                     labels.push(
                                         <Marker
-                                            key={`ruler-label-${i}`}
-                                            position={[midLat, midLng]}
+                                            key="ruler-total"
+                                            position={current}
                                             interactive={false}
                                             icon={divIcon({
-                                                className: 'ruler-label',
-                                                html: `<div style="background-color: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap;">${dist.toFixed(1)}m</div>`,
-                                                iconSize: [40, 20],
-                                                iconAnchor: [20, 10]
+                                                className: 'ruler-total-label',
+                                                html: `<div style="background-color: #2563eb; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 900; white-space: nowrap; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-top: -30px;">TOTAL: ${totalDist.toFixed(1)}m</div>`,
+                                                iconSize: [120, 30],
+                                                iconAnchor: [60, 15]
                                             })}
                                         />
                                     );
-
-                                    // If last point, add total label
-                                    if (i === rulerPoints.length - 1) {
-                                        labels.push(
-                                            <Marker
-                                                key="ruler-total"
-                                                position={current}
-                                                interactive={false}
-                                                icon={divIcon({
-                                                    className: 'ruler-total-label',
-                                                    html: `<div style="background-color: #2563eb; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 900; white-space: nowrap; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-top: -30px;">TOTAL: ${totalDist.toFixed(1)}m</div>`,
-                                                    iconSize: [120, 30],
-                                                    iconAnchor: [60, 15]
-                                                })}
-                                            />
-                                        );
-                                    }
                                 }
-                                return labels;
-                            })()}
-                        </>
-                    )}
+                            }
+                            return labels;
+                        })()}
+                    </>
+                )}
 
-                    {/* Temporary line while drawing cable */}
-                    {activeTool === 'cable' && cableStart && (
-                        <Marker position={cableStart.latlng} icon={createIcon('#ec4899', 'circle')} />
-                    )}
-                </MapContainer>
-            </div>
-
-            {/* Undo Toast */}
-            {
-                deletedItem && (
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in">
-                        <span>Elemento excluído</span>
-                        <button
-                            onClick={handleUndo}
-                            className="text-blue-400 font-bold hover:text-blue-300 uppercase text-sm tracking-wide"
-                        >
-                            Desfazer
-                        </button>
-                        <button
-                            onClick={() => setDeletedItem(null)}
-                            className="text-gray-500 hover:text-gray-300 ml-2"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                )
-            }
+                {/* Temporary line while drawing cable */}
+                {activeTool === 'cable' && cableStart && (
+                    <Marker position={cableStart.latlng} icon={createIcon('#ec4899', 'circle')} />
+                )}
+            </MapContainer>
         </div>
-    );
+
+        {/* Street View Panel */}
+        {streetViewLocation && (
+            <div className="absolute bottom-4 right-4 z-[1500] w-[350px] sm:w-[500px] h-[250px] sm:h-[350px] bg-gray-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto">
+                <div className="absolute top-2 right-2 z-10 flex gap-2">
+                    <a
+                        href={`https://www.google.com/maps?q=&layer=c&cbll=${streetViewLocation.lat},${streetViewLocation.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-lg flex items-center gap-1 text-[10px] font-bold uppercase transition-colors"
+                    >
+                        <ExternalLink size={14} /> Abrir Full
+                    </a>
+                    <button
+                        onClick={() => setStreetViewLocation(null)}
+                        className="p-1.5 bg-gray-800/80 hover:bg-red-600 text-white rounded-lg shadow-lg transition-colors"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+                <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                    <iframe
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        style={{ border: 0 }}
+                        src={`https://www.google.com/maps/embed/v1/streetview?key=YOUR_API_KEY_HERE&location=${streetViewLocation.lat},${streetViewLocation.lng}&heading=210&pitch=10&fov=80`}
+                        allowFullScreen
+                    ></iframe>
+                    {/* Overlay message if API Key is missing or embed fails */}
+                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center pointer-events-none opacity-40 select-none">
+                        <Camera size={48} className="mx-auto mb-2" />
+                        <p className="text-xs">Google Street View</p>
+                        <p className="text-[10px]">Aguardando conexão ou chave de API</p>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Undo Toast */}
+        {
+            deletedItem && (
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in">
+                    <span>Elemento excluído</span>
+                    <button
+                        onClick={handleUndo}
+                        className="text-blue-400 font-bold hover:text-blue-300 uppercase text-sm tracking-wide"
+                    >
+                        Desfazer
+                    </button>
+                    <button
+                        onClick={() => setDeletedItem(null)}
+                        className="text-gray-500 hover:text-gray-300 ml-2"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )
+        }
+    </div>
+);
 };
 
 export default Map;
