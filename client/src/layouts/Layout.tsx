@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Map as MapIcon, Users, Settings, FolderOpen, Building2, LogOut, Activity, Shield } from 'lucide-react';
+import { LayoutDashboard, Map as MapIcon, Users, Settings, FolderOpen, LogOut, Activity, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNav from '../components/Layout/BottomNav';
 import { UpdateBanner } from '../components/Layout/UpdateBanner';
@@ -36,15 +36,15 @@ const Layout = () => {
                         <Users size={24} />
                     </NavLink>
 
-                    {/* Admin Only Link */}
-                    {user?.role === 'admin' && (
-                        <NavLink to="/tenants" className={({ isActive }) => `p-3 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title="Empresas (Tenants)">
-                            <Building2 size={24} />
+                    {/* Super Admin Global Link */}
+                    {user?.role === 'super_admin' && (
+                        <NavLink to="/admin/tenants" className={({ isActive }) => `p-3 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-purple-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title="Gestão Master (Empresas)">
+                            <Shield size={24} />
                         </NavLink>
                     )}
 
                     <NavLink to="/audit-logs" className={({ isActive }) => `p-3 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`} title="Logs de Auditoria">
-                        <Shield size={24} />
+                        <Activity size={24} />
                     </NavLink>
 
                     <div className="mt-auto flex flex-col gap-4 items-center w-full">

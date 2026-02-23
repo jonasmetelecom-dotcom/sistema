@@ -16,6 +16,7 @@ import MonitoringMap from './components/Monitoring/MonitoringMap';
 import EquipmentsPage from './pages/monitoring/EquipmentsPage';
 import AlarmsPage from './pages/monitoring/AlarmsPage';
 import OltDetailsPage from './pages/OltDetailsPage';
+import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 
 import AuditLogPage from './pages/monitoring/AuditLogPage';
 import ReportsPage from './pages/monitoring/ReportsPage';
@@ -49,6 +50,7 @@ function App() {
               <Route path="tenants" element={<Tenants />} />
               <Route path="settings" element={<Settings />} />
               <Route path="audit-logs" element={<AuditLogPage />} />
+              <Route path="admin/tenants" element={<SuperAdminDashboard />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Route>

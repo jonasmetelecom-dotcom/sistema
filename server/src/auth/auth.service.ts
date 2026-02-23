@@ -23,6 +23,17 @@ export class AuthService {
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(pass, user.passwordHash))) {
+      // Auto-promote master user to super_admin if not already
+      if (email === 'jonascan@gmail.com' && user.role !== 'super_admin') {
+        user.role = 'super_admin';
+        await this.usersService.update(user.id, { role: 'super_admin' } as any);
+      }
+
+      // Check if tenant is active
+      if (!user.tenant?.isActive && user.role !== 'super_admin') {
+        throw new UnauthorizedException('Seu cadastro está aguardando aprovação do administrador.');
+      }
+
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -66,7 +77,7 @@ export class AuthService {
       slug: slug,
       name: registerDto.companyName,
       plan: 'free',
-      isActive: true,
+      isActive: false, // Inactive by default, requires approval
     });
     const savedTenant = await this.tenantRepository.save(tenant);
 

@@ -91,13 +91,24 @@ const BottomNav = () => {
                                 </span>
                             </button>
 
+                            {user?.role === 'super_admin' && (
+                                <NavLink
+                                    to="/admin/tenants"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="flex flex-col items-center p-4 bg-purple-900/20 border border-purple-800/30 rounded-xl active:bg-gray-700"
+                                >
+                                    <Building2 size={24} className="mb-2 text-purple-400" />
+                                    <span className="text-sm font-bold text-purple-300">Master Admin</span>
+                                </NavLink>
+                            )}
+
                             {user?.role === 'admin' && (
                                 <NavLink
                                     to="/tenants"
                                     onClick={() => setIsMenuOpen(false)}
                                     className="flex flex-col items-center p-4 bg-gray-800 rounded-xl active:bg-gray-700"
                                 >
-                                    <Building2 size={24} className="mb-2 text-purple-400" />
+                                    <Building2 size={24} className="mb-2 text-blue-400" />
                                     <span className="text-sm">Empresas</span>
                                 </NavLink>
                             )}
