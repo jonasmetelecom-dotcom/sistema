@@ -90,27 +90,11 @@ const getSnappedPosition = (
 const MapResizer = () => {
     const map = useMap();
     useEffect(() => {
-        let resizeTimer: ReturnType<typeof setTimeout>;
-        const handleResize = () => {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(() => {
-                map.invalidateSize();
-            }, 300);
-        };
-
-        const resizeObserver = new ResizeObserver(handleResize);
-        const container = map.getContainer();
-        if (container) {
-            resizeObserver.observe(container);
-        }
-
-        // Initial check
-        handleResize();
-
-        return () => {
-            resizeObserver.disconnect();
-            clearTimeout(resizeTimer);
-        };
+        // Simple timer instead of ResizeObserver to avoid potential layout loops
+        const timer = setTimeout(() => {
+            map.invalidateSize();
+        }, 500);
+        return () => clearTimeout(timer);
     }, [map]);
     return null;
 };
@@ -329,6 +313,9 @@ const MapEvents = ({ activeTool, projectId, onElementCreated, cableStart, setCab
 
     return null;
 };
+
+// Move constants outside to avoid re-renders
+const DEFAULT_CENTER: LatLngExpression = [-23.5505, -46.6333];
 
 const Map = () => {
     const [searchParams] = useSearchParams();
@@ -619,8 +606,6 @@ const Map = () => {
             alert('A distância informada é maior que o comprimento total da rede iluminada.');
         }
     };
-
-    const defaultCenter: LatLngExpression = [-23.5505, -46.6333];
 
     // Icons
     const createIcon = (color: string, shape: 'circle' | 'square' = 'circle') => divIcon({
@@ -924,9 +909,10 @@ const Map = () => {
                 {cableStart ? 'Clique para continuar o cabo (ESC para cancelar)' : 'Clique no ponto inicial'}
             </div>
 
-            <div ref={mapRef} className="w-full h-full bg-gray-900 overflow-hidden">
+            <div ref={mapRef} className="w-full h-full bg-gray-900 overflow-hidden relative" style={{ minHeight: '400px' }}>
                 <MapContainer
-                    center={defaultCenter}
+                    key={projectId || 'none'}
+                    center={DEFAULT_CENTER}
                     zoom={13}
                     zoomControl={false}
                     className="w-full h-full"
@@ -934,7 +920,7 @@ const Map = () => {
                         height: '100%',
                         width: '100%',
                         cursor: activeTool !== 'select' ? 'crosshair' : 'grab',
-                        background: '#111827' // Matching gray-900
+                        background: '#111827'
                     }}
                 >
                     <LayersControl position="topright">
