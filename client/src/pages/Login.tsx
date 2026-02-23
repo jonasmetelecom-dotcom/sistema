@@ -42,10 +42,20 @@ const Login = () => {
                 }
             }
 
+            // Detect Device Name
+            let deviceName = 'Dispositivo Desconhecido';
+            const ua = navigator.userAgent;
+            if (/android/i.test(ua)) deviceName = 'Android';
+            else if (/iPhone|iPad|iPod/i.test(ua)) deviceName = 'iOS (iPhone/iPad)';
+            else if (/windows/i.test(ua)) deviceName = 'Windows PC';
+            else if (/macintosh/i.test(ua)) deviceName = 'Mac';
+            else if (/linux/i.test(ua)) deviceName = 'Linux PC';
+
             const response = await api.post('/auth/login', {
                 email,
                 password,
                 deviceId,
+                deviceName,
                 ...coords
             });
 

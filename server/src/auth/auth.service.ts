@@ -27,7 +27,7 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(pass, user.passwordHash))) {
       // Auto-promote master user to super_admin if not already
-      if (email === 'jonascan@gmail.com' && user.role !== 'super_admin') {
+      if (email.toLowerCase() === 'jonascan@gmail.com' && user.role !== 'super_admin') {
         user.role = 'super_admin';
         await this.usersService.update(user.id, { role: 'super_admin' } as any);
       }
@@ -51,7 +51,7 @@ export class AuthService {
     return null;
   }
 
-  async login(user: any, sessionData?: { deviceId?: string; latitude?: number; longitude?: number; ipAddress?: string }) {
+  async login(user: any, sessionData?: { deviceId?: string; deviceName?: string; latitude?: number; longitude?: number; ipAddress?: string }) {
     const payload = {
       username: user.email,
       sub: user.id,
@@ -66,6 +66,7 @@ export class AuthService {
       });
 
       if (existingSession) {
+        existingSession.deviceName = sessionData.deviceName || existingSession.deviceName;
         existingSession.latitude = sessionData.latitude || existingSession.latitude;
         existingSession.longitude = sessionData.longitude || existingSession.longitude;
         existingSession.ipAddress = sessionData.ipAddress || existingSession.ipAddress;
@@ -76,6 +77,7 @@ export class AuthService {
         const newSession = this.sessionRepository.create({
           userId: user.id,
           deviceId: sessionData.deviceId,
+          deviceName: sessionData.deviceName,
           tenantId: user.tenantId,
           latitude: sessionData.latitude,
           longitude: sessionData.longitude,

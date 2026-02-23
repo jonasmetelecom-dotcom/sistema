@@ -392,11 +392,24 @@ const UserConnections = () => {
 
                 {Object.values(groupedSessions).map((group: any) => (
                     <div key={group.user?.id} className="space-y-3">
-                        <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
-                            <User size={16} className="text-blue-400" />
-                            <h3 className="font-bold text-gray-300">
-                                {group.user?.name} <span className="text-gray-500 font-normal text-sm">({group.user?.email})</span>
-                            </h3>
+                        <div className="flex items-center justify-between border-b border-gray-700 pb-2">
+                            <div className="flex items-center gap-2">
+                                <User size={16} className="text-blue-400" />
+                                <h3 className="font-bold text-gray-300">
+                                    {group.user?.name}
+                                    <span className="text-gray-500 font-normal text-sm ml-2">({group.user?.email})</span>
+                                </h3>
+                            </div>
+                            {group.user?.role === 'super_admin' && (
+                                <span className="text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold uppercase">
+                                    Admin Master
+                                </span>
+                            )}
+                            {group.user?.role === 'admin' && group.user?.role !== 'super_admin' && (
+                                <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold uppercase">
+                                    Admin Empresa
+                                </span>
+                            )}
                         </div>
                         <div className="grid gap-3">
                             {group.items.map((session: any) => (
@@ -413,7 +426,7 @@ const UserConnections = () => {
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <p className="font-bold text-white text-sm">
-                                                    ID: {session.deviceId.substring(0, 8)}...
+                                                    {session.deviceName || 'Aparelho Desconhecido'}
                                                 </p>
                                                 {isCurrentDevice(session.deviceId) && (
                                                     <span className="bg-blue-600 text-[9px] uppercase font-bold px-2 py-0.5 rounded-full text-white">
@@ -422,8 +435,9 @@ const UserConnections = () => {
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-3 mt-1">
-                                                <p className="text-xs text-gray-500">IP: {session.ipAddress || '?'}</p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-[10px] text-gray-500">ID: {session.deviceId.substring(0, 8)}...</p>
+                                                <p className="text-[10px] text-gray-500">IP: {session.ipAddress || '?'}</p>
+                                                <p className="text-[10px] text-gray-500">
                                                     Visto em: {new Date(session.lastSeen).toLocaleString('pt-BR')}
                                                 </p>
                                             </div>

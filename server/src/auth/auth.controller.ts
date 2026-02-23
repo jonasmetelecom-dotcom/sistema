@@ -35,6 +35,7 @@ export class AuthController {
 
     return this.authService.login(user, {
       deviceId: loginDto.deviceId,
+      deviceName: loginDto.deviceName,
       latitude: loginDto.latitude,
       longitude: loginDto.longitude,
       ipAddress: typeof ipAddress === 'string' ? ipAddress : ipAddress?.[0],

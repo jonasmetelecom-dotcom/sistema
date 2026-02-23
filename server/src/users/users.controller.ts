@@ -46,12 +46,21 @@ export class UsersController {
 
   @Get('sessions')
   getUserSessions(@Request() req: any) {
-    if (req.user.role === 'admin') {
-      // Admin sees everything
+    const role = req.user.role;
+    const tenantId = req.user.tenantId;
+
+    if (role === 'super_admin') {
+      // Master Admin sees everything from all companies
       return this.usersService.getUserSessions();
     }
-    // Company users see their tenant's sessions
-    return this.usersService.getUserSessions(undefined, req.user.tenantId);
+
+    if (role === 'admin') {
+      // Company Admin sees all connections of their specific company
+      return this.usersService.getUserSessions(undefined, tenantId);
+    }
+
+    // Regular users (technicians, engineers) see only their own connections
+    return this.usersService.getUserSessions(req.user.id);
   }
 
   @Get(':id')
