@@ -18,27 +18,43 @@ import { useAuth } from '../../contexts/AuthContext';
 // Component to handle map view updates
 const MapController = ({ center, bounds, flyToTarget, onCancel }: { center: LatLngExpression | null, bounds?: LatLngBounds | null, flyToTarget?: LatLng | null, onCancel: () => void }) => {
     const map = useMap();
+    const lastMovedTo = useRef<string>('');
 
     useEffect(() => {
         if (flyToTarget) {
+            const posKey = `target-${flyToTarget.lat}-${flyToTarget.lng}`;
+            if (lastMovedTo.current === posKey) return;
+
+            lastMovedTo.current = posKey;
             map.flyTo(flyToTarget, 19, { duration: 1.5 });
         }
     }, [flyToTarget, map]);
 
     useEffect(() => {
         if (bounds && bounds.isValid()) {
-            map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-        } else if (center) {
-            // Check if center is a valid coordinate array/object
-            const isCoordValid = Array.isArray(center)
-                ? (center[0] != null && center[1] != null)
-                : (center as any).lat != null && (center as any).lng != null;
+            const boundsKey = `bounds-${bounds.toBBoxString()}`;
+            if (lastMovedTo.current === boundsKey) return;
 
-            if (isCoordValid) {
-                // Zoom to at least 17, or keep current if higher
+            lastMovedTo.current = boundsKey;
+            map.fitBounds(bounds, { padding: [50, 50], animate: true, duration: 1.5 });
+        } else if (center) {
+            const lat = Array.isArray(center) ? (center as any)[0] : (center as any).lat;
+            const lng = Array.isArray(center) ? (center as any)[1] : (center as any).lng;
+
+            if (lat == null || lng == null) return;
+
+            const posKey = `center-${lat}-${lng}`;
+            if (lastMovedTo.current === posKey) return;
+
+            const currentCenter = map.getCenter();
+            const dist = L.latLng(lat, lng).distanceTo(currentCenter);
+
+            // Only move if significantly far (more than 10 meters)
+            if (dist > 10) {
+                lastMovedTo.current = posKey;
                 const currentZoom = map.getZoom();
                 const targetZoom = Math.max(currentZoom, 17);
-                map.flyTo(center, targetZoom, { duration: 1.5 });
+                map.flyTo([lat, lng], targetZoom, { duration: 1.5 });
             }
         }
     }, [center, bounds, map]);
@@ -324,7 +340,6 @@ const Map = () => {
     const readOnly = user?.role === 'viewer';
     const [center, setCenter] = useState<LatLngExpression | null>(null);
     const [bounds, setBounds] = useState<LatLngBounds | null>(null); // New state for bounds
-    const [hasZoomedToProject, setHasZoomedToProject] = useState(false); // Track if we've zoomed
 
     const [activeTool, setActiveTool] = useState<ToolType>('select');
     // New State for Cable Settings
@@ -430,9 +445,14 @@ const Map = () => {
         try {
             const response = await api.get(`/projects/${projectId}`);
             const { latitude, longitude } = response.data || {};
-            // Precise check for valid numbers including 0
             if (typeof latitude === 'number' && typeof longitude === 'number' && !isNaN(latitude) && !isNaN(longitude)) {
-                setCenter([latitude, longitude]);
+                setCenter(prev => {
+                    if (Array.isArray(prev)) {
+                        const [pLat, pLng] = prev as any;
+                        if (pLat === latitude && pLng === longitude) return prev;
+                    }
+                    return [latitude, longitude];
+                });
             }
         } catch (error) {
             console.error('Error fetching project details:', error);
@@ -465,9 +485,8 @@ const Map = () => {
         }
     }, [projectId]);
 
-    // Reset zoom state when project changes
+    // Reset state when project changes
     useEffect(() => {
-        setHasZoomedToProject(false);
         setBounds(null);
         setElements({ poles: [], boxes: [], cables: [], onus: [], rbs: [], ctoCustomers: [] });
     }, [projectId]);
@@ -479,9 +498,12 @@ const Map = () => {
         }
     }, [projectId, fetchProjectLocation, fetchElements]);
 
+    // Use a ref for hasZoomedToProject to be more stable against re-renders
+    const hasZoomedRef = useRef<string | null>(null);
+
     // Calculate bounds and zoom when elements are loaded for the first time
     useEffect(() => {
-        if (projectId && !hasZoomedToProject) {
+        if (projectId && hasZoomedRef.current !== projectId && elements.poles.length + elements.boxes.length + elements.cables.length > 0) {
             const allPoints: LatLngExpression[] = [];
 
             elements.poles.forEach(p => {
@@ -508,16 +530,16 @@ const Map = () => {
                 try {
                     const newBounds = L.latLngBounds(allPoints);
                     if (newBounds.isValid()) {
+                        hasZoomedRef.current = projectId;
                         setBounds(newBounds);
-                        setHasZoomedToProject(true);
                     }
                 } catch (err) {
                     console.error('Error calculating bounds:', err);
-                    setHasZoomedToProject(true); // Don't try again if it failed once
+                    hasZoomedRef.current = projectId; // Mark as attempted
                 }
             }
         }
-    }, [projectId, elements, hasZoomedToProject]);
+    }, [projectId, elements]);
 
     // Reset cable start when tool changes
     useEffect(() => {
