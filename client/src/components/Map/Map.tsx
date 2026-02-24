@@ -379,6 +379,8 @@ const Map = () => {
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [editingCableId, setEditingCableId] = useState<string | null>(null);
     const [draggingMidpoint, setDraggingMidpoint] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
+    const [draggingVertex, setDraggingVertex] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
+    const [adjacencyModal, setAdjacencyModal] = useState<{ isOpen: boolean, cableId: string, newPoints: any[] } | null>(null);
     const [snapConfig, setSnapConfig] = useState({ enabled: true, radius: 20 });
     const [contextMenu, setContextMenu] = useState<{ latlng: any, element: any, type: string } | null>(null);
     const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
@@ -583,6 +585,20 @@ const Map = () => {
         } catch (error) {
             console.error('Error tracing path:', error);
             alert('Erro ao rastrear caminho');
+        }
+    };
+
+    const commitGeometryChanges = async (cableId: string, newPoints: any[]) => {
+        try {
+            await api.patch(`/network-elements/cables/${cableId}`, {
+                points: newPoints
+            });
+            await api.post(`/network-elements/cables/auto-poles`, { cableId });
+            console.log('Cable geometry and poles updated');
+            fetchElements();
+        } catch (error) {
+            console.error('Error updating cable geometry:', error);
+            alert('Erro ao salvar geometria');
         }
     };
 
@@ -1201,60 +1217,75 @@ const Map = () => {
                                     </>
                                 )}
 
-                                {/* Draggable Points for Editing Cable */}
+                                {/* Draggable Points (Vertices) for Editing Cable */}
                                 {editingCableId === cable.id && cable.points && cable.points.map((point: LatLng, index: number) => {
                                     if (point.lat == null || point.lng == null) return null;
+                                    const prevPoint = index > 0 ? cable.points[index - 1] : null;
+                                    const nextPoint = index < cable.points.length - 1 ? cable.points[index + 1] : null;
+
                                     return (
-                                        <Marker
-                                            key={`${cable.id}-point-${index}`}
-                                            position={point}
-                                            draggable={true}
-                                            icon={divIcon({
-                                                className: 'vertex-icon',
-                                                html: `<div style="background-color: white; width: 10px; height: 10px; border: 2px solid #f59e0b; border-radius: 50%;"></div>`,
-                                                iconSize: [10, 10],
-                                                iconAnchor: [5, 5]
-                                            })}
-                                            eventHandlers={{
-                                                dragend: async (e) => {
-                                                    const marker = e.target;
-                                                    const newLatLng = marker.getLatLng();
+                                        <Fragment key={`${cable.id}-point-group-${index}`}>
+                                            {/* Ghost lines for vertex dragging */}
+                                            {draggingVertex && draggingVertex.cableId === cable.id && draggingVertex.index === index && (
+                                                <Polyline
+                                                    positions={[
+                                                        ...(prevPoint ? [prevPoint, draggingVertex.latlng] : []),
+                                                        ...(nextPoint ? [draggingVertex.latlng, nextPoint] : [])
+                                                    ]}
+                                                    pathOptions={{ color: '#facc15', weight: 2, dashArray: '5, 10', opacity: 0.8 }}
+                                                    interactive={false}
+                                                />
+                                            )}
 
-                                                    // Update local state temporarily
-                                                    const newPoints = [...cable.points];
-                                                    newPoints[index] = newLatLng;
+                                            <Marker
+                                                key={`${cable.id}-point-${index}`}
+                                                position={point}
+                                                draggable={true}
+                                                icon={divIcon({
+                                                    className: 'vertex-icon',
+                                                    html: `<div style="background-color: #facc15; width: 10px; height: 10px; border: 1px solid #713f12; box-shadow: 0 0 5px rgba(0,0,0,0.3);"></div>`,
+                                                    iconSize: [10, 10],
+                                                    iconAnchor: [5, 5]
+                                                })}
+                                                eventHandlers={{
+                                                    dragstart: () => {
+                                                        setDraggingVertex({ cableId: cable.id, index, latlng: point });
+                                                    },
+                                                    drag: (e) => {
+                                                        const marker = e.target;
+                                                        setDraggingVertex({ cableId: cable.id, index, latlng: marker.getLatLng() });
+                                                    },
+                                                    dragend: async (e) => {
+                                                        const marker = e.target;
+                                                        const newLatLng = marker.getLatLng();
+                                                        setDraggingVertex(null);
 
-                                                    // Update elements state to reflect change immediately
-                                                    const updatedCables = elements.cables.map(c =>
-                                                        c.id === cable.id ? { ...c, points: newPoints } : c
-                                                    );
-                                                    setElements({ ...elements, cables: updatedCables });
+                                                        const newPoints = [...cable.points];
+                                                        newPoints[index] = newLatLng;
 
-                                                    // Persist to backend and re-associate poles (A4)
-                                                    try {
-                                                        await api.patch(`/network-elements/cables/${cable.id}`, {
-                                                            points: newPoints
-                                                        });
-                                                        await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
-                                                        console.log('Cable geometry and poles updated');
-                                                    } catch (error) {
-                                                        console.error('Error updating cable geometry:', error);
+                                                        // Check if modal should be shown
+                                                        const dontAskAgain = localStorage.getItem('ftth_dont_ask_adjacencies') === 'true';
+                                                        if (dontAskAgain) {
+                                                            commitGeometryChanges(cable.id, newPoints);
+                                                        } else {
+                                                            setAdjacencyModal({ isOpen: true, cableId: cable.id, newPoints });
+                                                        }
+                                                    },
+                                                    click: (e) => {
+                                                        e.originalEvent.stopPropagation();
+                                                        if (activeTool === 'ruler') {
+                                                            setRulerPoints((prev: LatLng[]) => [...prev, point]);
+                                                        }
+                                                    },
+                                                    contextmenu: (e) => {
+                                                        e.originalEvent.stopPropagation();
+                                                        if (activeTool === 'ruler') {
+                                                            setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
+                                                        }
                                                     }
-                                                },
-                                                click: (e) => {
-                                                    e.originalEvent.stopPropagation();
-                                                    if (activeTool === 'ruler') {
-                                                        setRulerPoints((prev: LatLng[]) => [...prev, point]);
-                                                    }
-                                                },
-                                                contextmenu: (e) => {
-                                                    e.originalEvent.stopPropagation();
-                                                    if (activeTool === 'ruler') {
-                                                        setRulerPoints((prev: LatLng[]) => prev.slice(0, -1));
-                                                    }
-                                                }
-                                            }}
-                                        />
+                                                }}
+                                            />
+                                        </Fragment>
                                     );
                                 })}
 
@@ -1271,7 +1302,7 @@ const Map = () => {
                                             {draggingMidpoint && draggingMidpoint.cableId === cable.id && draggingMidpoint.index === index && (
                                                 <Polyline
                                                     positions={[point, draggingMidpoint.latlng, nextPoint]}
-                                                    pathOptions={{ color: '#3b82f6', weight: 2, dashArray: '5, 10', opacity: 0.8 }}
+                                                    pathOptions={{ color: '#facc15', weight: 2, dashArray: '5, 10', opacity: 0.8 }}
                                                     interactive={false}
                                                 />
                                             )}
@@ -1282,7 +1313,8 @@ const Map = () => {
                                                 draggable={true}
                                                 icon={divIcon({
                                                     className: 'midpoint-icon',
-                                                    html: `<div style="background-color: white; width: 6px; height: 6px; border: 2px solid #3b82f6; border-radius: 50%; opacity: 0.8; box-shadow: 0 0 5px rgba(59,130,246,0.5);"></div>`,
+                                                    // Smaller yellow square for midpoint
+                                                    html: `<div style="background-color: rgba(250, 204, 21, 0.6); width: 6px; height: 6px; border: 1px solid #713f12; box-shadow: 0 0 3px rgba(0,0,0,0.2);"></div>`,
                                                     iconSize: [6, 6],
                                                     iconAnchor: [3, 3]
                                                 })}
@@ -1300,32 +1332,37 @@ const Map = () => {
                                                         const newPoints = [...cable.points];
                                                         newPoints.splice(index + 1, 0, newLatLng);
 
-                                                        // Update state
+                                                        // Update local elements state immediately for responsiveness
                                                         const updatedCables = elements.cables.map(c =>
                                                             c.id === cable.id ? { ...c, points: newPoints } : c
                                                         );
                                                         setElements({ ...elements, cables: updatedCables });
                                                         setDraggingMidpoint(null);
 
-                                                        // Persist
-                                                        try {
-                                                            await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
-                                                            await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
-                                                        } catch (err) { console.error(err); }
+                                                        // Check modal logic
+                                                        const dontAskAgain = localStorage.getItem('ftth_dont_ask_adjacencies') === 'true';
+                                                        if (dontAskAgain) {
+                                                            commitGeometryChanges(cable.id, newPoints);
+                                                        } else {
+                                                            setAdjacencyModal({ isOpen: true, cableId: cable.id, newPoints });
+                                                        }
                                                     },
                                                     click: async (e) => {
                                                         e.originalEvent.stopPropagation();
-                                                        // Fallback for simple click insertion
                                                         const newPoints = [...cable.points];
                                                         newPoints.splice(index + 1, 0, new LatLng(midLat, midLng));
+
                                                         const updatedCables = elements.cables.map(c =>
                                                             c.id === cable.id ? { ...c, points: newPoints } : c
                                                         );
                                                         setElements({ ...elements, cables: updatedCables });
-                                                        try {
-                                                            await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
-                                                            await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
-                                                        } catch (err) { console.error(err); }
+
+                                                        const dontAskAgain = localStorage.getItem('ftth_dont_ask_adjacencies') === 'true';
+                                                        if (dontAskAgain) {
+                                                            commitGeometryChanges(cable.id, newPoints);
+                                                        } else {
+                                                            setAdjacencyModal({ isOpen: true, cableId: cable.id, newPoints });
+                                                        }
                                                     }
                                                 }}
                                             />
@@ -1877,6 +1914,75 @@ const Map = () => {
                 </div>
             )
             }
+            {/* Adjacency Removal Modal (OZMap style) */}
+            {adjacencyModal && adjacencyModal.isOpen && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded shadow-2xl w-[480px] overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="bg-[#5c9ccc] px-4 py-2 flex items-center justify-between text-white select-none">
+                            <span className="font-semibold text-[15px] flex items-center gap-2">
+                                Remover adjacências
+                            </span>
+                            <div className="flex items-center gap-1.5 opacity-80">
+                                <button className="p-0.5 hover:bg-white/20 rounded">
+                                    <div className="w-3 h-3 border-2 border-white/80 rounded-[1px] transform rotate-45 border-t-0 border-r-0"></div>
+                                </button>
+                                <button
+                                    onClick={() => setAdjacencyModal(null)}
+                                    className="p-0.5 hover:bg-white/20 rounded"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-7">
+                            <p className="text-[#333] text-[13px] leading-[1.6] mb-8 font-sans">
+                                Deseja remover as adjacências antigas usadas por cabo?
+                                <br />
+                                <span className="mt-1 block">
+                                    Serão removidas apenas as adjacências que faziam parte do traçado do cabo e não estão mais em uso.
+                                </span>
+                            </p>
+
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    id="dontAskAgain"
+                                    className="h-4 w-4 rounded border-gray-300 text-[#5c9ccc] focus:ring-[#5c9ccc]"
+                                />
+                                <span className="text-[13px] text-[#444]">
+                                    Não perguntar novamente
+                                </span>
+                            </label>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-[#f0f0f0] px-3 py-3 flex justify-end gap-2 border-t border-gray-200">
+                            <button
+                                onClick={() => setAdjacencyModal(null)}
+                                className="px-6 py-2 bg-[#5c9ccc] hover:bg-[#4a8bbd] text-white rounded text-[13px] font-medium min-w-[100px] transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const checkbox = document.getElementById('dontAskAgain') as HTMLInputElement;
+                                    if (checkbox?.checked) {
+                                        localStorage.setItem('ftth_dont_ask_adjacencies', 'true');
+                                    }
+                                    commitGeometryChanges(adjacencyModal.cableId, adjacencyModal.newPoints);
+                                    setAdjacencyModal(null);
+                                }}
+                                className="px-6 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded text-[13px] font-medium min-w-[60px] transition-colors"
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
