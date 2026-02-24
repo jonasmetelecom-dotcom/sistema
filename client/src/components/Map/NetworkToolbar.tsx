@@ -164,13 +164,7 @@ export const NetworkToolbar = ({
 
                 <div className="h-px bg-gray-700 my-1 mx-2" />
 
-                <ToolbarItem
-                    active={!!snapConfig?.enabled}
-                    onClick={() => onSnapConfigChange?.({ ...snapConfig!, enabled: !snapConfig?.enabled })}
-                    icon={<Layers size={20} className={snapConfig?.enabled ? "text-blue-400" : "text-gray-500"} />}
-                    label="Snap"
-                    className={snapConfig?.enabled ? "text-blue-400" : "text-gray-500"}
-                />
+
 
                 <div className="flex gap-2">
                     <button
@@ -228,27 +222,7 @@ export const NetworkToolbar = ({
 
                         <div className="w-full h-px bg-gray-800 my-1" />
                         <div className="h-px bg-gray-700 my-1 mx-2" />
-                        <ToolbarItem
-                            active={activeTool === 'pole'}
-                            onClick={() => onToolChange('pole')}
-                            icon={<Zap size={20} />}
-                            label="Poste"
-                            className="text-yellow-400"
-                        />
-                        <ToolbarItem
-                            active={activeTool === 'box'}
-                            onClick={() => onToolChange('box')}
-                            icon={<Box size={20} />}
-                            label="Caixa"
-                            className="text-green-400"
-                        />
-                        <ToolbarItem
-                            active={activeTool === 'cable'}
-                            onClick={() => onToolChange('cable')}
-                            icon={<CableIcon size={20} />}
-                            label="Cabo"
-                            className="text-pink-400"
-                        />
+
                         <ToolbarItem
                             active={activeTool === 'customer'}
                             onClick={() => onToolChange('customer')}
