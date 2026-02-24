@@ -37,6 +37,12 @@ export class Pole {
   @Column()
   projectId: string;
 
+  @Column({ default: false })
+  licensed: boolean;
+
+  @Column({ nullable: true })
+  status: string; // proposed, approved, built
+
   @CreateDateColumn()
   createdAt: Date;
 

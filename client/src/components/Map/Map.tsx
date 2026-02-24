@@ -378,6 +378,9 @@ const Map = () => {
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [editingCableId, setEditingCableId] = useState<string | null>(null);
+    const [colorPicker, setColorPicker] = useState<{ isOpen: boolean, cableId: string, currentColor: string } | null>(null);
+    const [showReservesCableIds, setShowReservesCableIds] = useState<Set<string>>(new Set());
+    const [removingPointsCableId, setRemovingPointsCableId] = useState<string | null>(null);
     const [draggingMidpoint, setDraggingMidpoint] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [draggingVertex, setDraggingVertex] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [adjacencyModal, setAdjacencyModal] = useState<{ isOpen: boolean, cableId: string, newPoints: any[] } | null>(null);
@@ -600,6 +603,62 @@ const Map = () => {
             console.error('Error updating cable geometry:', error);
             alert('Erro ao salvar geometria');
         }
+    };
+
+    const handleLicensingPoles = async (cable: any) => {
+        if (!confirm(`Deseja licenciar todos os postes associados ao cabo ${cable.name || cable.id.slice(0, 8)}?`)) return;
+        try {
+            await api.post(`/network-elements/cables/${cable.id}/license-poles`);
+            fetchElements();
+            alert('Postes licenciados com sucesso!');
+        } catch (err) {
+            console.error('Error licensing poles:', err);
+            alert('Erro ao licenciar postes');
+        }
+    };
+
+    const handlePointToPoleConversion = async (cable: any) => {
+        if (!confirm(`Deseja converter todos os pontos deste cabo em postes?`)) return;
+        try {
+            await api.post(`/network-elements/cables/${cable.id}/convert-points-to-poles`);
+            fetchElements();
+            alert('Pontos convertidos em postes com sucesso!');
+        } catch (err) {
+            console.error('Error converting points to poles:', err);
+            alert('Erro na conversão');
+        }
+    };
+
+    const handlePoleToPointConversion = async (cable: any) => {
+        if (!confirm(`Deseja converter todos os postes deste cabo em pontos simples?`)) return;
+        try {
+            await api.post(`/network-elements/cables/${cable.id}/convert-poles-to-points`);
+            fetchElements();
+            alert('Postes convertidos em pontos com sucesso!');
+        } catch (err) {
+            console.error('Error converting poles to points:', err);
+            alert('Erro na conversão');
+        }
+    };
+
+    const handleElevationDistance = async (cableId: string) => {
+        try {
+            await api.post(`/network-elements/cables/${cableId}/calculate-elevation-distance`);
+            fetchElements();
+            alert('Distância com relevo atribuída!');
+        } catch (err) {
+            console.error('Error calculating elevation distance:', err);
+            alert('Erro ao calcular distância');
+        }
+    };
+
+    const toggleTechnicalReserves = (cableId: string) => {
+        setShowReservesCableIds(prev => {
+            const next = new Set(prev);
+            if (next.has(cableId)) next.delete(cableId);
+            else next.add(cableId);
+            return next;
+        });
     };
 
 
@@ -1131,6 +1190,7 @@ const Map = () => {
 
                             // If user has selected specific colors, use the first one
                             if (cable.colors) {
+                                if (cable.colors.startsWith('#')) return cable.colors;
                                 const firstColor = cable.colors.split(',')[0].trim();
                                 if (fiberColorMap[firstColor]) return fiberColorMap[firstColor];
                             }
@@ -1179,6 +1239,21 @@ const Map = () => {
                                                 </div>
                                             </Popup>
                                         </Polyline>
+
+                                        {/* Technical Reserves markers along the cable */}
+                                        {showReservesCableIds.has(cable.id) && cable.points && cable.points.map((point: LatLng, idx: number) => (
+                                            <Marker
+                                                key={`reserve-${cable.id}-${idx}`}
+                                                position={point}
+                                                icon={divIcon({
+                                                    className: 'reserve-marker',
+                                                    html: `<div style="background-color: #3b82f6; width: 10px; height: 10px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>`,
+                                                    iconSize: [10, 10],
+                                                    iconAnchor: [5, 5]
+                                                })}
+                                                interactive={false}
+                                            />
+                                        ))}
 
                                         {/* Cable Label at Midpoint */}
                                         {(() => {
@@ -1271,8 +1346,20 @@ const Map = () => {
                                                             setAdjacencyModal({ isOpen: true, cableId: cable.id, newPoints });
                                                         }
                                                     },
-                                                    click: (e) => {
+                                                    click: async (e) => {
                                                         e.originalEvent.stopPropagation();
+                                                        if (removingPointsCableId === cable.id) {
+                                                            const newPoints = [...cable.points];
+                                                            newPoints.splice(index, 1);
+                                                            if (newPoints.length < 2) {
+                                                                alert('Um cabo deve ter pelo menos 2 pontos.');
+                                                                return;
+                                                            }
+                                                            await commitGeometryChanges(cable.id, newPoints);
+                                                            setRemovingPointsCableId(null);
+                                                            alert('Ponto removido com sucesso!');
+                                                            return;
+                                                        }
                                                         if (activeTool === 'ruler') {
                                                             setRulerPoints((prev: LatLng[]) => [...prev, point]);
                                                         }
@@ -1782,20 +1869,50 @@ const Map = () => {
                                 <Zap size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Iluminar</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={() => {
+                                    setColorPicker({
+                                        isOpen: true,
+                                        cableId: contextMenu.element.id,
+                                        currentColor: contextMenu.element.colors || '#ff0000'
+                                    });
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <Palette size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Editar Cor</span>
                             </button>
                             <div className="h-[1px] bg-gray-100 my-1" />
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={() => {
+                                    // Simplified sub-project transfer: for now just a mockup logic
+                                    alert('Selecione o projeto destino na barra lateral propriedades');
+                                    handleElementClick(null, contextMenu.element, 'cable');
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <Repeat size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Trocar para projeto filho</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={async () => {
+                                    await handleLicensingPoles(contextMenu.element);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <BadgeCheck size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Licenciar postes</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={async () => {
+                                    await handleElevationDistance(contextMenu.element.id);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <Mountain size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Atribuir distância com relevo</span>
                             </button>
@@ -1810,25 +1927,60 @@ const Map = () => {
                                 <Link size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Conectar em caixas (Split)</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={async () => {
+                                    if (confirm('Deseja auto-associar postes neste cabo?')) {
+                                        await api.post('/network-elements/cables/auto-poles', { cableId: contextMenu.element.id });
+                                        fetchElements();
+                                        alert('Postes associados!');
+                                    }
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <Link2 size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Conectar em postes</span>
                             </button>
                             <div className="h-[1px] bg-gray-100 my-1" />
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={async () => {
+                                    await handlePointToPoleConversion(contextMenu.element);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <RefreshCw size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Converter pontos em postes</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={async () => {
+                                    await handlePoleToPointConversion(contextMenu.element);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <RefreshCcw size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Converter postes em pontos</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                            <button
+                                onClick={() => {
+                                    setRemovingPointsCableId(contextMenu.element.id);
+                                    setContextMenu(null);
+                                    alert('Modo de remoção de pontos ativado. Clique nos vértices do cabo para removê-los.');
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
                                 <CircleOff size={14} className="text-gray-400 group-hover:text-blue-500" />
                                 <span>Remover pontos</span>
                             </button>
-                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
-                                <Layers size={14} className="text-gray-400 group-hover:text-blue-500" />
+                            <button
+                                onClick={() => {
+                                    toggleTechnicalReserves(contextMenu.element.id);
+                                    setContextMenu(null);
+                                }}
+                                className={`w-full flex items-center gap-3 px-4 py-2 ${showReservesCableIds.has(contextMenu.element.id) ? 'bg-blue-100' : 'hover:bg-blue-50'} text-gray-700 text-[11px] font-medium transition-all text-left group`}
+                            >
+                                <Layers size={14} className={showReservesCableIds.has(contextMenu.element.id) ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'} />
                                 <span>Mostrar reserva técnica</span>
                             </button>
                             <div className="h-[1px] bg-gray-100 my-1" />

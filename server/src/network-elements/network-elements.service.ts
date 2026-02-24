@@ -457,6 +457,65 @@ export class NetworkElementsService {
     return associatedPoleIds;
   }
 
+  async licensePoles(cableId: string) {
+    const cable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    if (!cable || !cable.poleIds || cable.poleIds.length === 0) return { success: false, message: 'Nenhum poste associado' };
+
+    await this.polesRepository.update(
+      { id: In(cable.poleIds) },
+      { licensed: true, status: 'built' }
+    );
+    return { success: true };
+  }
+
+  async convertPointsToPoles(cableId: string) {
+    const cable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    if (!cable) throw new NotFoundException('Cabo não encontrado');
+
+    const newPoles: Pole[] = [];
+    for (const point of cable.points) {
+      // Check if there is already a pole at this exact location
+      const existing = await this.polesRepository.findOne({
+        where: { latitude: point.lat, longitude: point.lng, projectId: cable.projectId }
+      });
+      if (!existing) {
+        const pole = this.polesRepository.create({
+          projectId: cable.projectId,
+          latitude: point.lat,
+          longitude: point.lng,
+          name: `P-${cable.name || 'NEW'}-${Math.floor(Math.random() * 1000)}`,
+          status: 'built'
+        });
+        newPoles.push(pole);
+      }
+    }
+
+    if (newPoles.length > 0) {
+      await this.polesRepository.save(newPoles);
+    }
+
+    // Re-run association to link both old and new poles
+    return this.autoAssociatePoles(cableId);
+  }
+
+  async convertPolesToPoints(cableId: string) {
+    await this.cablesRepository.update(cableId, { poleIds: [] });
+    return { success: true };
+  }
+
+  async calculateElevationDistance(cableId: string) {
+    const cable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    if (!cable) throw new NotFoundException('Cabo não encontrado');
+
+    // Simple elevation Factor: 1.05 (5% increase for terrain)
+    const factor = 1.05;
+    const currentLength = cable.length3D || 100; // fallback
+    const newLength = currentLength * factor;
+
+    await this.cablesRepository.update(cableId, { length3D: newLength });
+    return { success: true, newLength };
+  }
+
   async deleteSplitter(id: string) {
     // Soft delete connections involving this splitter
     await this.fusionsRepository.softDelete({

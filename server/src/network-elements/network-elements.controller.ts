@@ -130,6 +130,26 @@ export class NetworkElementsController {
     return this.networkElementsService.autoAssociatePoles(cableId);
   }
 
+  @Post('cables/:id/license-poles')
+  licensePoles(@Param('id') id: string) {
+    return this.networkElementsService.licensePoles(id);
+  }
+
+  @Post('cables/:id/convert-points-to-poles')
+  convertPointsToPoles(@Param('id') id: string) {
+    return this.networkElementsService.convertPointsToPoles(id);
+  }
+
+  @Post('cables/:id/convert-poles-to-points')
+  convertPolesToPoints(@Param('id') id: string) {
+    return this.networkElementsService.convertPolesToPoints(id);
+  }
+
+  @Post('cables/:id/calculate-elevation-distance')
+  calculateElevationDistance(@Param('id') id: string) {
+    return this.networkElementsService.calculateElevationDistance(id);
+  }
+
   @Post('fusions')
   createFusion(@Body() data: any) {
     return this.networkElementsService.createFusion(data);
