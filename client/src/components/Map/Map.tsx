@@ -713,6 +713,52 @@ const Map = () => {
         iconAnchor: [6, 6]
     });
 
+    const syncCablesWithElement = async (elementId: string, lat: number, lng: number, persist: boolean = true) => {
+        const affectedCables = elements.cables.filter(c =>
+            c.fromId === elementId || c.toId === elementId || (c.poleIds || []).includes(elementId)
+        );
+
+        if (affectedCables.length === 0) return;
+
+        const updatedCables = elements.cables.map(cable => {
+            if (cable.fromId === elementId || cable.toId === elementId || (cable.poleIds || []).includes(elementId)) {
+                const newPoints = [...cable.points];
+                let changed = false;
+
+                if (cable.fromId === elementId) {
+                    newPoints[0] = { lat, lng };
+                    changed = true;
+                }
+
+                if (cable.toId === elementId) {
+                    newPoints[newPoints.length - 1] = { lat, lng };
+                    changed = true;
+                }
+
+                // Intermediate poles
+                if ((cable.poleIds || []).includes(elementId)) {
+                    const poleIdx = cable.poleIds.indexOf(elementId);
+                    if (newPoints[poleIdx + 1]) {
+                        newPoints[poleIdx + 1] = { lat, lng };
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    if (persist) {
+                        api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints }).catch(err => {
+                            console.error('Error syncing cable:', cable.id, err);
+                        });
+                    }
+                    return { ...cable, points: newPoints };
+                }
+            }
+            return cable;
+        });
+
+        setElements(prev => ({ ...prev, cables: updatedCables }));
+    };
+
 
     // Handlers
     const handleElementClick = async (e: any, element: any, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs') => {
@@ -746,6 +792,7 @@ const Map = () => {
                 }
             } else if (type === 'cable') {
                 setCenter(null);
+                setEditingCableId(element.id);
                 if (element.points && element.points.length > 0) {
                     try {
                         const cableBounds = L.latLngBounds(element.points);
@@ -1603,6 +1650,11 @@ const Map = () => {
                                             type: 'pole'
                                         });
                                     },
+                                    drag: (e) => {
+                                        const marker = e.target;
+                                        const newLatLng = marker.getLatLng();
+                                        syncCablesWithElement(pole.id, newLatLng.lat, newLatLng.lng, false);
+                                    },
                                     dragend: async (e) => {
                                         const marker = e.target;
                                         const newLatLng = marker.getLatLng();
@@ -1613,12 +1665,13 @@ const Map = () => {
                                         );
                                         setElements({ ...elements, poles: updatedPoles });
 
-                                        // Persist to backend
+                                        // Persist to backend and sync cables
                                         try {
                                             await api.patch(`/network-elements/poles/${pole.id}`, {
                                                 latitude: newLatLng.lat,
                                                 longitude: newLatLng.lng
                                             });
+                                            syncCablesWithElement(pole.id, newLatLng.lat, newLatLng.lng);
                                         } catch (error) {
                                             console.error('Error moving pole:', error);
                                         }
@@ -1669,6 +1722,11 @@ const Map = () => {
                                                 type: 'box'
                                             });
                                         },
+                                        drag: (e) => {
+                                            const marker = e.target;
+                                            const newLatLng = marker.getLatLng();
+                                            syncCablesWithElement(box.id, newLatLng.lat, newLatLng.lng, false);
+                                        },
                                         dragend: async (e) => {
                                             const marker = e.target;
                                             const newLatLng = marker.getLatLng();
@@ -1679,12 +1737,13 @@ const Map = () => {
                                             );
                                             setElements({ ...elements, boxes: updatedBoxes });
 
-                                            // Persist to backend
+                                            // Persist to backend and sync
                                             try {
                                                 await api.patch(`/network-elements/boxes/${box.id}`, {
                                                     latitude: newLatLng.lat,
                                                     longitude: newLatLng.lng
                                                 });
+                                                syncCablesWithElement(box.id, newLatLng.lat, newLatLng.lng);
                                             } catch (error) {
                                                 console.error('Error moving box:', error);
                                             }
