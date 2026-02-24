@@ -117,9 +117,11 @@ const MapResizer = () => {
 };
 
 const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
-    const isCTO = type === 'cto' || type === 'termination' || name?.toUpperCase().includes('CTO');
-    const isCEO = type === 'ceo' || type === 'splice_closure' || name?.toUpperCase().includes('CEO') || name?.toUpperCase().includes('EMENDA');
-    const isSplitter = type === 'splitter' || name?.toUpperCase().includes('SPLITTER') || name?.toUpperCase().includes('SPL');
+    const safeType = type || '';
+    const safeName = name || '';
+    const isCTO = safeType === 'cto' || safeType === 'termination' || safeName.toUpperCase().includes('CTO');
+    const isCEO = safeType === 'ceo' || safeType === 'splice_closure' || safeName.toUpperCase().includes('CEO') || safeName.toUpperCase().includes('EMENDA');
+    const isSplitter = safeType === 'splitter' || safeName.toUpperCase().includes('SPLITTER') || safeName.toUpperCase().includes('SPL');
 
     // Emerald for CTO, Blue for CEO, Orange for Splitter, Gray for others
     const color = isFull ? '#ef4444' : (isCTO ? '#10b981' : (isCEO ? '#3b82f6' : (isSplitter ? '#f59e0b' : '#94a3b8')));
@@ -1155,7 +1157,7 @@ const Map = () => {
                                         >
                                             <Popup>
                                                 <div className="text-center">
-                                                    <div className="font-bold">Cabo: {cable.type.toUpperCase()}</div>
+                                                    <div className="font-bold">Cabo: {cable.type?.toUpperCase() || 'CABO'}</div>
                                                     <div className="text-xs text-gray-500">{cable.fiberCount} Fibras</div>
                                                 </div>
                                             </Popup>
@@ -1186,7 +1188,7 @@ const Map = () => {
                                                                     border: 1px solid rgba(255,255,255,0.2);
                                                                     pointer-events: none;
                                                                 ">
-                                                                    ${cable.fiberCount}FO - ${cable.type.toUpperCase()}
+                                                                    ${cable.fiberCount || 1}FO - ${cable.type?.toUpperCase() || 'CABO'}
                                                                 </div>
                                                             `,
                                                         iconSize: [40, 14],
@@ -1337,7 +1339,7 @@ const Map = () => {
                                     }
                                 }}
                             >
-                                <Popup>Poste ID: {pole.id.slice(0, 8)}</Popup>
+                                <Popup>Poste ID: {pole.id?.slice(0, 8) || 'Desconhecido'}</Popup>
                             </Marker>
                         );
                     })}
@@ -1405,8 +1407,8 @@ const Map = () => {
                                 >
                                     <Popup>
                                         <div className="text-center">
-                                            <div className="font-bold">Caixa: {box.name || box.type.toUpperCase()}</div>
-                                            <div className="text-[10px] text-gray-500">{box.type.toUpperCase()}</div>
+                                            <div className="font-bold">Caixa: {box.name || (box.type?.toUpperCase() || 'BOX')}</div>
+                                            <div className="text-[10px] text-gray-500">{box.type?.toUpperCase() || 'EQUIPAMENTO'}</div>
                                         </div>
                                     </Popup>
                                 </Marker>

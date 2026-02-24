@@ -35,7 +35,7 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
             setLinkBudget(null);
 
             // Ensure reserves is an array
-            if (elementType === 'cable' && !element.reserves) {
+            if (elementType === 'cable' && (!element.reserves || !Array.isArray(element.reserves))) {
                 setFormData((prev: any) => ({ ...prev, reserves: [] }));
             }
 
@@ -81,7 +81,7 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
     };
 
     const getElementName = (id: string, type: string) => {
-        if (!elements) return id?.slice(0, 8);
+        if (!elements || !id || !type) return id?.slice(0, 8) || 'Desconhecido';
         const list = type === 'pole' ? elements.poles : elements.boxes;
         const item = list?.find((e: any) => e.id === id);
         return item?.name || `${type.toUpperCase()} - ${id?.slice(0, 8)}`;
