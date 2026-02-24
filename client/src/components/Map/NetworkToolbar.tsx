@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive } from 'lucide-react';
+import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, Undo2, Redo2, Sparkles, Activity } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
 export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap';
@@ -43,7 +43,19 @@ interface NetworkToolbarProps {
     onToggleCoverage?: () => void;
     snapConfig?: { enabled: boolean, radius: number };
     onSnapConfigChange?: (config: { enabled: boolean, radius: number }) => void;
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
     readOnly?: boolean;
+    showDifferential?: boolean;
+    onToggleDifferential?: () => void;
+    hasImpactAnalysis?: boolean;
+    onClearImpact?: () => void;
+    showHeatmap?: boolean;
+    onToggleHeatmap?: () => void;
+    onExpansionAnalysis?: () => void;
+    isAnalyzingExpansion?: boolean;
 }
 
 export const NetworkToolbar = ({
@@ -63,7 +75,19 @@ export const NetworkToolbar = ({
     onToggleCoverage,
     snapConfig,
     onSnapConfigChange,
-    readOnly
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+    readOnly,
+    showDifferential,
+    onToggleDifferential,
+    hasImpactAnalysis,
+    onClearImpact,
+    showHeatmap,
+    onToggleHeatmap,
+    onExpansionAnalysis,
+    isAnalyzingExpansion
 }: NetworkToolbarProps) => {
     const { isTechnicianMode } = useUIStore();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -148,8 +172,61 @@ export const NetworkToolbar = ({
                     className={snapConfig?.enabled ? "text-blue-400" : "text-gray-500"}
                 />
 
+                <div className="flex gap-2">
+                    <button
+                        disabled={!canUndo}
+                        onClick={onUndo}
+                        className={`p-2 rounded-lg flex-1 flex flex-col items-center gap-1 transition-all border border-gray-700 ${canUndo ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+                        title="Desfazer"
+                    >
+                        <Undo2 size={16} />
+                        <span className="text-[8px] uppercase">Desfazer</span>
+                    </button>
+                    <button
+                        disabled={!canRedo}
+                        onClick={onRedo}
+                        className={`p-2 rounded-lg flex-1 flex flex-col items-center gap-1 transition-all border border-gray-700 ${canRedo ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
+                        title="Refazer"
+                    >
+                        <Redo2 size={16} />
+                        <span className="text-[8px] uppercase">Refazer</span>
+                    </button>
+                </div>
+
                 {!readOnly && !isTechnicianMode && (
                     <>
+                        <ToolbarItem
+                            active={showDifferential || false}
+                            onClick={() => onToggleDifferential?.()}
+                            icon={<PieChart size={18} className={showDifferential ? 'text-white' : 'text-purple-400'} />}
+                            label="Diferencial"
+                        />
+
+                        <ToolbarItem
+                            active={showHeatmap || false}
+                            onClick={() => onToggleHeatmap?.()}
+                            icon={<Layers size={18} className={showHeatmap ? 'text-white' : 'text-orange-400'} />}
+                            label="Heatmap"
+                        />
+
+                        <ToolbarItem
+                            active={false}
+                            onClick={() => onExpansionAnalysis?.()}
+                            icon={<Sparkles size={18} className={isAnalyzingExpansion ? 'animate-spin text-yellow-400' : 'text-blue-400'} />}
+                            label="Expansão"
+                        />
+
+                        {hasImpactAnalysis && (
+                            <ToolbarItem
+                                active={true}
+                                onClick={() => onClearImpact?.()}
+                                icon={<Zap size={18} className="text-white animate-pulse" />}
+                                label="Limpar Impacto"
+                                className="!bg-red-600 !border-red-400"
+                            />
+                        )}
+
+                        <div className="w-full h-px bg-gray-800 my-1" />
                         <div className="h-px bg-gray-700 my-1 mx-2" />
                         <ToolbarItem
                             active={activeTool === 'pole'}

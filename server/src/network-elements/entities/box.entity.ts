@@ -33,6 +33,9 @@ export class InfrastructureBox {
   @Column({ type: 'simple-json', nullable: true })
   images: string[]; // Store URLs/paths of field photos
 
+  @Column({ default: 'draft' })
+  status: string; // 'draft', 'built', 'active'
+
   @ManyToOne(() => Project, (project) => project.boxes, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'projectId' })
   project: Project;

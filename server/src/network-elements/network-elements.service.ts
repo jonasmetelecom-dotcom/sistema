@@ -1629,9 +1629,21 @@ export class NetworkElementsService {
     tenantId: string,
   ) {
     const path = await this.tracePath(cableId, fiberIndex, tenantId);
+
+    // 1. Fetch project settings for customized loss/power
+    const firstCable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    const project = firstCable ? await this.projectsService.findOne(firstCable.projectId, { tenantId }) : null;
+
+    const settings = project?.settings as any;
+    const fiberLossPerKm = settings?.opticalLoss?.fiberPerKm || 0.35;
+    const fiberLossPerMeter = fiberLossPerKm / 1000;
+    const defaultOltPower = settings?.opticalLoss?.oltPower || 3.0;
+    const fusionLoss = settings?.opticalLoss?.fusion || 0.1;
+
     let totalLoss = 0;
     let totalDistance = 0;
     const events = [];
+    let isPathAsBuilt = true;
 
     for (const item of path) {
       if (item.type === 'cable') {
@@ -1640,13 +1652,17 @@ export class NetworkElementsService {
         });
         if (cable) {
           const length = this.calculateCableLength(cable);
-          const cableLoss = length * 0.00035; // 0.35 dB/km = 0.00035 dB/m
+          const cableLoss = length * fiberLossPerMeter;
           totalLoss += cableLoss;
           totalDistance += length;
+
+          if (cable.status !== 'built') isPathAsBuilt = false;
+
           events.push({
             type: 'cable',
             description: `Cabo ${cable.type.toUpperCase()} (${length.toFixed(1)}m)`,
             loss: cableLoss,
+            status: cable.status
           });
         }
       } else if (item.type === 'splitter') {
@@ -1674,7 +1690,6 @@ export class NetworkElementsService {
 
       // Add fusion loss for every step (simplified)
       if (item !== path[0]) {
-        const fusionLoss = 0.1;
         totalLoss += fusionLoss;
         events.push({
           type: 'fusion',
@@ -1684,7 +1699,7 @@ export class NetworkElementsService {
       }
     }
 
-    const estimatedSignal = parseFloat((3.0 - totalLoss).toFixed(2)); // Assuming +3.0dBm OLT Power (Standard Class B+/C+)
+    const estimatedSignal = parseFloat((defaultOltPower - totalLoss).toFixed(2));
     let status: 'optimal' | 'warning' | 'critical' = 'optimal';
 
     if (estimatedSignal < -28) status = 'critical';
@@ -1695,6 +1710,7 @@ export class NetworkElementsService {
       totalDistance: parseFloat(totalDistance.toFixed(1)),
       estimatedSignal,
       status,
+      isAsBuilt: isPathAsBuilt,
       events,
     };
   }
@@ -1850,6 +1866,53 @@ export class NetworkElementsService {
         items: bom,
         grandTotal,
       },
+    };
+  }
+
+  async getProjectDifferential(projectId: string, tenantId: string) {
+    const project = await this.projectsService.findOne(projectId, { tenantId });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const [poles, boxes, cables] = await Promise.all([
+      this.polesRepository.find({ where: { projectId } }),
+      this.boxesRepository.find({ where: { projectId } }),
+      this.cablesRepository.find({ where: { projectId } }),
+    ]);
+
+    const stats = {
+      poles: {
+        total: poles.length,
+        built: poles.filter(p => p.status === 'built' || p.status === 'active').length,
+        projetado: poles.filter(p => p.status === 'draft' || !p.status).length,
+      },
+      boxes: {
+        total: boxes.length,
+        built: boxes.filter(b => b.status === 'built' || b.status === 'active').length,
+        projetado: boxes.filter(b => b.status === 'draft' || !b.status).length,
+      },
+      cables: {
+        totalMeters: 0,
+        builtMeters: 0,
+        projetadoMeters: 0,
+      }
+    };
+
+    cables.forEach(c => {
+      const length = this.calculateCableLength(c);
+      stats.cables.totalMeters += length;
+      if (c.status === 'built' || c.status === 'active') {
+        stats.cables.builtMeters += length;
+      } else {
+        stats.cables.projetadoMeters += length;
+      }
+    });
+
+    return {
+      projectId,
+      projectName: project.name,
+      stats,
+      executionPercentage: stats.poles.total > 0 ? (stats.poles.built / stats.poles.total) * 100 : 0,
+      summary: `Projeto ${project.name}: ${stats.poles.built}/${stats.poles.total} postes executados.`
     };
   }
 
@@ -2239,5 +2302,89 @@ export class NetworkElementsService {
     });
     if (!port) throw new NotFoundException('Porta PON não encontrada.');
     return this.ponPortsRepository.remove(port);
+  }
+
+  async getExpansionSuggestions(projectId: string) {
+    const onus = await this.onusRepository.find({ where: { projectId } });
+    const boxes = await this.boxesRepository.find({ where: { projectId } });
+
+    // 1. Identify "uncovered" ONUs (no CTO within 200m)
+    const ctoBoxes = boxes.filter(
+      (b) => b.type === 'cto' || b.type === 'termination',
+    );
+    const uncoveredOnus = onus.filter((onu) => {
+      return !ctoBoxes.some((cto) => {
+        const dist = this.calculateDistance(
+          onu.latitude,
+          onu.longitude,
+          cto.latitude,
+          cto.longitude,
+        );
+        return dist < 200; // 200m range
+      });
+    });
+
+    if (uncoveredOnus.length === 0) return [];
+
+    // 2. Simple clustering: Group ONUs within 300m of each other
+    const clusters: any[][] = [];
+    const processed = new Set<string>();
+
+    for (const onu of uncoveredOnus) {
+      if (processed.has(onu.id)) continue;
+
+      const cluster = [onu];
+      processed.add(onu.id);
+
+      for (const other of uncoveredOnus) {
+        if (processed.has(other.id)) continue;
+        const dist = this.calculateDistance(
+          onu.latitude,
+          onu.longitude,
+          other.latitude,
+          other.longitude,
+        );
+        if (dist < 300) {
+          cluster.push(other);
+          processed.add(other.id);
+        }
+      }
+      clusters.push(cluster);
+    }
+
+    // 3. Return suggestions based on clusters of at least 3 ONUs
+    return clusters
+      .filter((c) => c.length >= 3)
+      .map((c) => {
+        const avgLat = c.reduce((sum, o) => sum + o.latitude, 0) / c.length;
+        const avgLng = c.reduce((sum, o) => sum + o.longitude, 0) / c.length;
+        return {
+          latitude: avgLat,
+          longitude: avgLng,
+          uncoveredCount: c.length,
+          reason: `Cluster de ${c.length} clientes desatendidos`,
+          type: 'suggested_cto',
+        };
+      });
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371e3; // metres
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
   }
 }

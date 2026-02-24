@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Cable, Split as SplitIcon, Link, Trash2, FileDown, Camera, Image as ImageIcon, Plus } from 'lucide-react';
+import { X, Cable, Split as SplitIcon, Link, Trash2, FileDown, Camera, Image as ImageIcon, Plus, Activity } from 'lucide-react';
 import api from '../../services/api';
 import { getFiberColor, getFiberName } from '../../utils/fiberColors';
 import { generateFusionDiagram } from '../../utils/FusionDiagramGenerator';
 import { jsPDF } from 'jspdf';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface BoxInternalsProps {
     boxId: string;
@@ -20,6 +21,7 @@ interface FiberPoint {
 }
 
 export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
+    const { user } = useAuth();
     // Removed unused loading state
     const [data, setData] = useState<{ splitters: any[], fusions: any[], incomingCables: any[], outgoingCables: any[], destinationTypes?: Record<string, string>, images?: string[], ctoCustomers?: any[], poleId?: string } | null>(null);
     const [selectedOrigin, setSelectedOrigin] = useState<FiberPoint | null>(null);
@@ -128,15 +130,20 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                 return;
             }
 
-            // check for existing fusion to prevent duplication
-            const exists = data?.fusions.some((f: any) =>
-                (f.originId === origin.id && f.originFiberIndex === origin.fiberIndex && f.destinationId === destination.id && f.destinationFiberIndex === destination.fiberIndex) ||
-                (f.originId === destination.id && f.originFiberIndex === destination.fiberIndex && f.destinationId === origin.id && f.destinationFiberIndex === origin.fiberIndex)
+            // check for existing fusion (either as source or sink) to prevent duplication/loops
+            const isOriginConnected = data?.fusions.some((f: any) =>
+                (f.originId === origin.id && f.originFiberIndex === origin.fiberIndex) ||
+                (f.destinationId === origin.id && f.destinationFiberIndex === origin.fiberIndex)
             );
 
-            if (exists) {
+            const isDestConnected = data?.fusions.some((f: any) =>
+                (f.originId === destination.id && f.originFiberIndex === destination.fiberIndex) ||
+                (f.destinationId === destination.id && f.destinationFiberIndex === destination.fiberIndex)
+            );
+
+            if (isOriginConnected || isDestConnected) {
+                alert('Uma das fibras selecionadas já possui uma conexão ativa. Remova a conexão existente antes de criar uma nova.');
                 setSelectedOrigin(null);
-                console.log('Fusion already exists, skipping.');
                 return;
             }
 
@@ -151,7 +158,8 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                     destinationId: destination.id,
                     destinationType: destination.type,
                     destinationFiberIndex: destination.fiberIndex,
-                    color: getFiberColor(origin.fiberIndex) // Use origin color by default
+                    color: getFiberColor(origin.fiberIndex), // Use origin color by default
+                    userResponsible: user?.name || 'Sistema'
                 });
                 setSelectedOrigin(null);
                 fetchData();
@@ -547,6 +555,7 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                                                                         switch (status) {
                                                                             case 'reserved': return 'bg-yellow-500 border-yellow-600';
                                                                             case 'blocked': return 'bg-red-500 border-red-600';
+                                                                            case 'damaged': return 'bg-purple-600 border-purple-700';
                                                                             case 'free': return 'bg-gray-600 border-gray-700';
                                                                             default: return 'bg-orange-500 border-orange-600'; // active
                                                                         }
@@ -826,6 +835,7 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                                         <option value="active">Ativa</option>
                                         <option value="reserved">Reservada</option>
                                         <option value="blocked">Bloqueada</option>
+                                        <option value="damaged">Com Defeito</option>
                                         <option value="free">Livre</option>
                                     </select>
                                 </div>

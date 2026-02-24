@@ -315,6 +315,27 @@ export class NetworkElementsController {
     );
   }
 
+  @Get('project/:projectId/differential')
+  getProjectDifferential(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    return this.networkElementsService.getProjectDifferential(
+      projectId,
+      req.user.tenantId,
+    );
+  }
+
+  @Get('project/:projectId/expansion-suggestions')
+  getExpansionSuggestions(@Param('projectId') projectId: string) {
+    return this.networkElementsService.getExpansionSuggestions(projectId);
+  }
+
+  @Get('project/:projectId/heatmap')
+  getNetworkHeatmap(@Param('projectId') projectId: string) {
+    return this.networkElementsService.getExpansionSuggestions(projectId);
+  }
+
   @Get('link-budget')
   getLinkBudget(
     @Query('elementId') elementId: string,

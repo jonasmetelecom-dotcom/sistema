@@ -69,7 +69,16 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
                         : elementType === 'rbs' ? 'rbs'
                             : 'cables';
 
-            await api.patch(`/network-elements/${endpoint}/${element.id}`, formData);
+            const payload = { ...formData };
+            if (elementType === 'cable') {
+                // Calculate totalLength before saving
+                const slagLen = parseFloat(payload.slack || 0);
+                const reserveSum = (payload.reserves || []).reduce((acc: number, r: any) => acc + (parseFloat(r.length) || 0), 0);
+                payload.reserveLength = reserveSum;
+                payload.totalLength = (parseFloat(payload.length3D) || 0) + slagLen + reserveSum;
+            }
+
+            await api.patch(`/network-elements/${endpoint}/${element.id}`, payload);
             onUpdate();
             onClose();
         } catch (error) {
@@ -185,49 +194,98 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
                             </div>
 
                             {elementType === 'pole' && (
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Material</label>
-                                    <div className="flex gap-2">
-                                        <select
-                                            name="material"
-                                            value={formData.material || 'concrete'}
-                                            onChange={handleChange}
-                                            className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
-                                        >
-                                            <option value="concrete">Concreto</option>
-                                            <option value="wood">Madeira</option>
-                                            <option value="metal">Metal</option>
-                                        </select>
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm('Deseja converter este poste em uma Caixa CTO?')) return;
-                                                try {
-                                                    setLoading(true);
-                                                    // 1. Delete pole
-                                                    await api.delete(`/network-elements/poles/${element.id}`);
-                                                    // 2. Create box at same position
-                                                    await api.post('/network-elements/boxes', {
-                                                        projectId: element.projectId,
-                                                        latitude: element.latitude,
-                                                        longitude: element.longitude,
-                                                        type: 'cto',
-                                                        name: 'CTO-NEW'
-                                                    });
-                                                    onUpdate();
-                                                    onClose();
-                                                } catch (err) {
-                                                    alert('Erro ao converter elemento');
-                                                } finally {
-                                                    setLoading(false);
-                                                }
-                                            }}
-                                            className="px-3 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 rounded border border-emerald-600/30 text-[10px] font-bold transition-colors"
-                                            title="Converter para Caixa"
-                                        >
-                                            CONVERTER
-                                        </button>
+                                <>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Material</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                name="material"
+                                                value={formData.material || 'concrete'}
+                                                onChange={handleChange}
+                                                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            >
+                                                <option value="concrete">Concreto</option>
+                                                <option value="wood">Madeira</option>
+                                                <option value="metal">Metal</option>
+                                            </select>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm('Deseja converter este poste em uma Caixa CTO?')) return;
+                                                    try {
+                                                        setLoading(true);
+                                                        await api.delete(`/network-elements/poles/${element.id}`);
+                                                        await api.post('/network-elements/boxes', {
+                                                            projectId: element.projectId,
+                                                            latitude: element.latitude,
+                                                            longitude: element.longitude,
+                                                            type: 'cto',
+                                                            name: 'CTO-NEW'
+                                                        });
+                                                        onUpdate();
+                                                        onClose();
+                                                    } catch (err) {
+                                                        alert('Erro ao converter elemento');
+                                                    } finally {
+                                                        setLoading(false);
+                                                    }
+                                                }}
+                                                className="px-3 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 rounded border border-emerald-600/30 text-[10px] font-bold transition-colors"
+                                                title="Converter para Caixa"
+                                            >
+                                                CONVERTER
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Altura (m)</label>
+                                            <input
+                                                type="number"
+                                                name="height"
+                                                value={formData.height || 11}
+                                                onChange={handleChange}
+                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Esforço (daN/kg)</label>
+                                            <input
+                                                type="number"
+                                                name="currentLoad"
+                                                value={formData.currentLoad || 0}
+                                                onChange={handleChange}
+                                                className={`bg-gray-800 border ${parseFloat(formData.currentLoad) > 100 ? 'border-red-500 text-red-400' : 'border-gray-700 text-white'} rounded px-2 py-1.5 text-sm focus:border-blue-500 outline-none`}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Concessionária</label>
+                                        <input
+                                            type="text"
+                                            name="concessionaire"
+                                            value={formData.concessionaire || ''}
+                                            onChange={handleChange}
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            placeholder="Ex: ENEL, CPFL..."
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Status</label>
+                                        <select
+                                            name="status"
+                                            value={formData.status || 'planned'}
+                                            onChange={handleChange}
+                                            className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                        >
+                                            <option value="planned">Planejado</option>
+                                            <option value="built">Executado (As-Built)</option>
+                                            <option value="licensed">Licenciado</option>
+                                        </select>
+                                    </div>
+                                </>
                             )}
 
                             {elementType === 'box' && (
@@ -440,18 +498,26 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Ocupação (Fibras)</label>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="number"
-                                                    name="occupation"
-                                                    value={formData.occupation || 0}
-                                                    onChange={handleChange}
-                                                    max={formData.fiberCount || 120}
-                                                    className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
-                                                />
-                                                <span className="text-xs text-gray-500 font-mono">
-                                                    / {formData.fiberCount || 1} FO
-                                                </span>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        name="occupation"
+                                                        value={formData.occupation || 0}
+                                                        onChange={handleChange}
+                                                        max={formData.fiberCount || 120}
+                                                        className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                                    />
+                                                    <span className="text-xs text-gray-500 font-mono">
+                                                        / {formData.fiberCount || 1} FO ({(((formData.occupation || 0) / (formData.fiberCount || 1)) * 100).toFixed(0)}%)
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all ${((formData.occupation || 0) / (formData.fiberCount || 1)) >= 1 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                                        style={{ width: `${Math.min(100, ((formData.occupation || 0) / (formData.fiberCount || 1)) * 100)}%` }}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -484,29 +550,23 @@ export const SidebarProperties = ({ element, elementType, elements, onClose, onU
 
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Nível</label>
-                                            <select
-                                                name="level"
-                                                value={formData.level || 'TERCIÁRIO'}
-                                                onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Cabo em Produção?</label>
+                                            <button
+                                                onClick={() => setFormData((prev: any) => ({ ...prev, isLocked: !prev.isLocked }))}
+                                                className={`w-full py-1.5 rounded border transition-all text-xs font-bold ${formData.isLocked
+                                                    ? 'bg-red-600/20 border-red-600 text-red-500'
+                                                    : 'bg-emerald-600/10 border-emerald-600/30 text-emerald-500'
+                                                    }`}
                                             >
-                                                <option value="PRIMÁRIO">PRIMÁRIO</option>
-                                                <option value="SECUNDÁRIO">SECUNDÁRIO</option>
-                                                <option value="TERCIÁRIO">TERCIÁRIO</option>
-                                                <option value="ALIMENTAÇÃO">ALIMENTAÇÃO</option>
-                                            </select>
+                                                {formData.isLocked ? 'SIM (TRAVADO)' : 'NÃO (EDITÁVEL)'}
+                                            </button>
                                         </div>
                                         <div className="flex flex-col gap-1">
-                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tags</label>
-                                            <input
-                                                type="text"
-                                                name="tags"
-                                                value={formData.tags || ''}
-                                                onChange={handleChange}
-                                                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500 outline-none"
-                                                placeholder="Reserva, etc"
-                                            />
+                                            <label className="text-xs text-gray-400 font-bold uppercase tracking-wider">Comprimento Total</label>
+                                            <div className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm font-mono flex justify-between items-center">
+                                                <span>{((parseFloat(formData.length3D || 0) + parseFloat(formData.slack || 0) + (formData.reserves || []).reduce((acc: number, r: any) => acc + (parseFloat(r.length) || 0), 0))).toFixed(1)}</span>
+                                                <span className="text-gray-500">m</span>
+                                            </div>
                                         </div>
                                     </div>
 

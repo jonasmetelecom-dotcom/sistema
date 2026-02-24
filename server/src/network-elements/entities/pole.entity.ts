@@ -41,7 +41,13 @@ export class Pole {
   licensed: boolean;
 
   @Column({ nullable: true })
-  status: string; // proposed, approved, built
+  status: string; // 'planned', 'built', 'licensed'
+
+  @Column({ nullable: true })
+  concessionaire: string;
+
+  @Column({ type: 'float', default: 0 })
+  currentLoad: number;
 
   @CreateDateColumn()
   createdAt: Date;

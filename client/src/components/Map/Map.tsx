@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, Fragment, useRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Zap, Box, Home, Radio, X, Edit3, Trash2, Settings, Search, Palette, Repeat, BadgeCheck, Mountain, Link, Link2, RefreshCw, RefreshCcw, CircleOff, Layers } from 'lucide-react';
-import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle } from 'react-leaflet';
+import { Zap, Box, Home, Radio, X, Edit3, Trash2, Settings, Search, Palette, Repeat, BadgeCheck, Mountain, Link, Link2, RefreshCw, RefreshCcw, CircleOff, Layers, Sparkles, Lightbulb } from 'lucide-react';
+import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle, Tooltip } from 'react-leaflet';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import L, { divIcon, LatLng, type LatLngExpression, type LatLngBounds } from 'leaflet';
@@ -16,13 +16,17 @@ import { ProjectMetricsModal } from './ProjectMetricsModal';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Component to handle map view updates
-const MapController = ({ center, bounds, flyToTarget, onCancel }: { center: LatLngExpression | null, bounds?: LatLngBounds | null, flyToTarget?: LatLng | null, onCancel: () => void }) => {
+const MapController = ({ center, bounds, flyToTarget, onCancel, onMapLoad }: { center: LatLngExpression | null, bounds?: LatLngBounds | null, flyToTarget?: LatLng | null, onCancel: () => void, onMapLoad?: (map: L.Map) => void }) => {
     const map = useMap();
+
+    useEffect(() => {
+        if (onMapLoad) onMapLoad(map);
+    }, [map, onMapLoad]);
     const lastMovedTo = useRef<string>('');
 
     useEffect(() => {
         if (flyToTarget) {
-            const posKey = `target-${flyToTarget.lat}-${flyToTarget.lng}`;
+            const posKey = `target - ${flyToTarget.lat} -${flyToTarget.lng} `;
             if (lastMovedTo.current === posKey) return;
 
             lastMovedTo.current = posKey;
@@ -32,7 +36,7 @@ const MapController = ({ center, bounds, flyToTarget, onCancel }: { center: LatL
 
     useEffect(() => {
         if (bounds && bounds.isValid()) {
-            const boundsKey = `bounds-${bounds.toBBoxString()}`;
+            const boundsKey = `bounds - ${bounds.toBBoxString()} `;
             if (lastMovedTo.current === boundsKey) return;
 
             lastMovedTo.current = boundsKey;
@@ -43,7 +47,7 @@ const MapController = ({ center, bounds, flyToTarget, onCancel }: { center: LatL
 
             if (lat == null || lng == null) return;
 
-            const posKey = `center-${lat}-${lng}`;
+            const posKey = `center - ${lat} -${lng} `;
             if (lastMovedTo.current === posKey) return;
 
             const currentCenter = map.getCenter();
@@ -129,16 +133,16 @@ const getBoxIcon = (type: string, name?: string, isFull?: boolean) => {
 
     return divIcon({
         className: 'custom-box-icon cursor-grab active:cursor-grabbing',
-        html: `<div style="
-            background-color: ${color}; 
-            width: 14px; 
-            height: 14px; 
-            border: 2px solid white; 
-            box-shadow: 0 0 10px ${isFull ? 'rgba(239,68,68,0.6)' : isCTO ? 'rgba(16,185,129,0.4)' : isSplitter ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.4)'}; 
-            transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};
-            border-radius: ${shape === 'square' ? '2px' : shape === 'circle' ? '50%' : '0'};
-            transition: all 0.2s ease-in-out;
-        "></div>`,
+        html: `< div style = "
+background - color: ${color};
+width: 14px;
+height: 14px;
+border: 2px solid white;
+box - shadow: 0 0 10px ${isFull ? 'rgba(239,68,68,0.6)' : isCTO ? 'rgba(16,185,129,0.4)' : isSplitter ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.4)'};
+transform: ${shape === 'diamond' ? 'rotate(45deg)' : 'none'};
+border - radius: ${shape === 'square' ? '2px' : shape === 'circle' ? '50%' : '0'};
+transition: all 0.2s ease -in -out;
+"></div>`,
         iconSize: [14, 14],
         iconAnchor: [7, 7]
     });
@@ -374,17 +378,23 @@ const Map = () => {
     const [tracedPath, setTracedPath] = useState<any[]>([]);
     const [deletedItem, setDeletedItem] = useState<{ id: string, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs', timeout: ReturnType<typeof setTimeout> } | null>(null);
 
-    const [showCoverage, setShowCoverage] = useState(false);
+    const [showCoverage, setShowCoverage] = useState(true);
+    const [showDifferential, setShowDifferential] = useState(false);
+    const [showHeatmap, setShowHeatmap] = useState(false);
+    const [impactPath, setImpactPath] = useState<any[] | null>(null);
+
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [editingCableId, setEditingCableId] = useState<string | null>(null);
-    const [colorPicker, setColorPicker] = useState<{ isOpen: boolean, cableId: string, currentColor: string } | null>(null);
     const [showReservesCableIds, setShowReservesCableIds] = useState<Set<string>>(new Set());
     const [removingPointsCableId, setRemovingPointsCableId] = useState<string | null>(null);
     const [draggingMidpoint, setDraggingMidpoint] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [draggingVertex, setDraggingVertex] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [adjacencyModal, setAdjacencyModal] = useState<{ isOpen: boolean, cableId: string, newPoints: any[] } | null>(null);
     const [snapConfig, setSnapConfig] = useState({ enabled: true, radius: 20 });
+    const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+    const [history, setHistory] = useState<any[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
     const [contextMenu, setContextMenu] = useState<{ latlng: any, element: any, type: string } | null>(null);
     const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
     const [loading, setLoading] = useState(false);
@@ -396,6 +406,8 @@ const Map = () => {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [flyToTarget, setFlyToTarget] = useState<LatLng | null>(null);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [expansionSuggestions, setExpansionSuggestions] = useState<any[]>([]);
+    const [showingSuggestions, setShowingSuggestions] = useState(false);
 
     const handleOpenMemorial = async () => {
         if (!mapRef.current) {
@@ -602,6 +614,30 @@ const Map = () => {
         } catch (error) {
             console.error('Error updating cable geometry:', error);
             alert('Erro ao salvar geometria');
+        }
+    };
+
+    const pushToHistory = (cableId: string, points: any[]) => {
+        const newEntry = { cableId, points: JSON.parse(JSON.stringify(points)) };
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newEntry);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+    };
+
+    const handleUndoRedo = (direction: 'undo' | 'redo') => {
+        const newIndex = direction === 'undo' ? historyIndex - 1 : historyIndex + 1;
+        if (newIndex >= 0 && newIndex < history.length) {
+            const entry = history[newIndex];
+            setHistoryIndex(newIndex);
+
+            // Apply geometry to local state
+            const updatedCables = elements.cables.map((c: any) =>
+                c.id === entry.cableId ? { ...c, points: entry.points } : c
+            );
+            setElements({ ...elements, cables: updatedCables });
+
+            // Note: We don't commit immediately to DB during undo/redo for speed
         }
     };
 
@@ -846,6 +882,24 @@ const Map = () => {
         }
     };
 
+    const handleExpansionAnalysis = async () => {
+        if (!projectId || loading) return;
+        setLoading(true);
+        try {
+            const response = await api.get(`/network-elements/project/${projectId}/expansion-suggestions`);
+            setExpansionSuggestions(response.data);
+            setShowingSuggestions(true);
+            if (response.data.length === 0) {
+                alert('Nenhuma área de expansão prioritária identificada no momento.');
+            }
+        } catch (error) {
+            console.error('Error fetching suggestions:', error);
+            alert('Erro ao processar análise inteligente.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSearch = (query: string) => {
         setSearchQuery(query);
         if (!query.trim()) {
@@ -941,11 +995,11 @@ const Map = () => {
             <NetworkToolbar
                 activeTool={activeTool}
                 onToolChange={setActiveTool}
+                onImportExport={() => setIsImportExportOpen(true)}
                 cableSettings={cableSettings}
                 onCableSettingsChange={setCableSettings}
                 boxSettings={boxSettings}
                 onBoxSettingsChange={setBoxSettings}
-                onImportExport={() => setIsImportExportOpen(true)}
                 onClearProject={handleClearProject}
                 onToggleInventory={() => setShowInventory(!showInventory)}
                 onOpenMetrics={() => setShowMetrics(true)}
@@ -955,7 +1009,19 @@ const Map = () => {
                 onToggleCoverage={() => setShowCoverage(!showCoverage)}
                 snapConfig={snapConfig}
                 onSnapConfigChange={setSnapConfig}
+                onUndo={() => handleUndoRedo('undo')}
+                onRedo={() => handleUndoRedo('redo')}
+                canUndo={historyIndex > 0}
+                canRedo={historyIndex < history.length - 1}
                 readOnly={readOnly}
+                showDifferential={showDifferential}
+                onToggleDifferential={() => setShowDifferential(!showDifferential)}
+                hasImpactAnalysis={!!impactPath}
+                onClearImpact={() => setImpactPath(null)}
+                showHeatmap={showHeatmap}
+                onToggleHeatmap={() => setShowHeatmap(!showHeatmap)}
+                onExpansionAnalysis={handleExpansionAnalysis}
+                isAnalyzingExpansion={loading && showingSuggestions}
             />
 
             {/* Search Tool Overlay */}
@@ -1104,7 +1170,13 @@ const Map = () => {
                     </LayersControl>
                     <ZoomControl position="bottomright" />
                     <MapResizer />
-                    <MapController center={center} bounds={bounds} flyToTarget={flyToTarget} onCancel={() => setCableStart(null)} />
+                    <MapController
+                        center={center}
+                        bounds={bounds}
+                        flyToTarget={flyToTarget}
+                        onCancel={() => setActiveTool('select')}
+                        onMapLoad={setMapInstance}
+                    />
                     <MapEvents
                         activeTool={activeTool}
                         projectId={projectId}
@@ -1204,6 +1276,7 @@ const Map = () => {
                             }
                         };
 
+                        const isSaturated = (cable.occupation || 0) >= (cable.fiberCount || 1);
                         const color = getCableColor();
 
                         return (
@@ -1213,10 +1286,11 @@ const Map = () => {
                                         <Polyline
                                             positions={cable.points.filter((p: any) => p && p.lat != null && p.lng != null)}
                                             pathOptions={{
-                                                color,
-                                                weight: isSelected ? 6 : cable.type === 'as120' ? 5 : 4,
-                                                opacity: 0.8,
-                                                dashArray: cable.type === 'underground' ? '5, 5' : undefined
+                                                color: showDifferential && (cable.status === 'draft' || !cable.status) ? '#94a3b8' : (isSaturated ? '#ef4444' : color),
+                                                weight: isSelected ? 6 : isSaturated ? 7 : (cable.type === 'as120' ? 5 : 4),
+                                                opacity: showDifferential && (cable.status === 'draft' || !cable.status) ? 0.4 : (isSaturated ? 1.0 : 0.8),
+                                                dashArray: (cable.type === 'underground' || (showDifferential && (cable.status === 'draft' || !cable.status))) ? '10, 10' : undefined,
+                                                className: isSaturated ? 'animate-pulse' : ''
                                             }}
                                             eventHandlers={{
                                                 click: async (e) => {
@@ -1233,27 +1307,49 @@ const Map = () => {
                                             }}
                                         >
                                             <Popup>
-                                                <div className="text-center">
-                                                    <div className="font-bold">Cabo: {cable.type?.toUpperCase() || 'CABO'}</div>
-                                                    <div className="text-xs text-gray-500">{cable.fiberCount} Fibras</div>
+                                                <div className="text-center p-1">
+                                                    <div className="font-bold text-slate-900">Cabo: {cable.name || cable.type?.toUpperCase()}</div>
+                                                    <div className="text-[10px] text-gray-500 mb-1">{cable.fiberCount} Fibras</div>
+                                                    {isSaturated && (
+                                                        <div className="bg-red-100 text-red-600 text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-block animate-bounce">
+                                                            SATURADO
+                                                        </div>
+                                                    )}
+                                                    <div className="text-[9px] mt-1 text-slate-400 font-mono">
+                                                        Ocupação: {cable.occupation || 0}/{cable.fiberCount} ({(((cable.occupation || 0) / (cable.fiberCount || 1)) * 100).toFixed(0)}%)
+                                                    </div>
                                                 </div>
                                             </Popup>
                                         </Polyline>
 
                                         {/* Technical Reserves markers along the cable */}
-                                        {showReservesCableIds.has(cable.id) && cable.points && cable.points.map((point: LatLng, idx: number) => (
-                                            <Marker
-                                                key={`reserve-${cable.id}-${idx}`}
-                                                position={point}
-                                                icon={divIcon({
-                                                    className: 'reserve-marker',
-                                                    html: `<div style="background-color: #3b82f6; width: 10px; height: 10px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>`,
-                                                    iconSize: [10, 10],
-                                                    iconAnchor: [5, 5]
-                                                })}
-                                                interactive={false}
-                                            />
-                                        ))}
+                                        {showReservesCableIds.has(cable.id) && (cable.reserves || []).map((reserve: any, rIdx: number) => {
+                                            if (reserve.length <= 0) return null;
+                                            const item = elements.poles.find((p: any) => p.id === reserve.poleId) || elements.boxes.find((b: any) => b.id === reserve.poleId);
+                                            if (!item || item.latitude == null) return null;
+                                            return (
+                                                <Marker
+                                                    key={`reserve-${cable.id}-${rIdx}`}
+                                                    position={[item.latitude, item.longitude]}
+                                                    icon={divIcon({
+                                                        className: 'reserve-marker',
+                                                        html: `
+                                                            <div style="position: relative; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">
+                                                                <div style="position: absolute; width: 100%; height: 100%; border: 2px solid #3b82f6; border-radius: 50%; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; border-style: dashed; opacity: 0.5;"></div>
+                                                                <div style="background: #3b82f6; width: 10px; height: 10px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);"></div>
+                                                                <div style="position: absolute; top: -12px; background: #3b82f6; color: white; border-radius: 4px; padding: 1px 3px; font-size: 8px; font-weight: bold; font-family: monospace; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space: nowrap;">
+                                                                    ${reserve.length}m
+                                                                </div>
+                                                            </div>
+                                                        `,
+                                                        iconSize: [20, 20],
+                                                        iconAnchor: [10, 10]
+                                                    })}
+                                                >
+                                                    <Tooltip direction="top">Reserva no Elemento: {reserve.length} metros</Tooltip>
+                                                </Marker>
+                                            );
+                                        })}
 
                                         {/* Cable Label at Midpoint */}
                                         {(() => {
@@ -1323,20 +1419,34 @@ const Map = () => {
                                                     iconAnchor: [5, 5]
                                                 })}
                                                 eventHandlers={{
-                                                    dragstart: () => {
+                                                    dragstart: (e) => {
+                                                        if (cable.isLocked) {
+                                                            alert('Esta fibra está em produção e não pode ser editada.');
+                                                            e.target.dragging.disable();
+                                                            return;
+                                                        }
+                                                        pushToHistory(cable.id, cable.points);
                                                         setDraggingVertex({ cableId: cable.id, index, latlng: point });
                                                     },
                                                     drag: (e) => {
                                                         const marker = e.target;
-                                                        setDraggingVertex({ cableId: cable.id, index, latlng: marker.getLatLng() });
+                                                        const latlng = marker.getLatLng();
+                                                        const snapped = (snapConfig.enabled && mapInstance)
+                                                            ? getSnappedPosition(latlng, elements, mapInstance, snapConfig.radius).latlng
+                                                            : latlng;
+                                                        setDraggingVertex({ cableId: cable.id, index, latlng: snapped });
                                                     },
                                                     dragend: async (e) => {
+                                                        if (cable.isLocked) return;
                                                         const marker = e.target;
-                                                        const newLatLng = marker.getLatLng();
+                                                        const latlng = marker.getLatLng();
+                                                        const snapped = (snapConfig.enabled && mapInstance)
+                                                            ? getSnappedPosition(latlng, elements, mapInstance, snapConfig.radius).latlng
+                                                            : latlng;
                                                         setDraggingVertex(null);
 
                                                         const newPoints = [...cable.points];
-                                                        newPoints[index] = newLatLng;
+                                                        newPoints[index] = snapped;
 
                                                         // Check if modal should be shown
                                                         const dontAskAgain = localStorage.getItem('ftth_dont_ask_adjacencies') === 'true';
@@ -1406,18 +1516,32 @@ const Map = () => {
                                                     iconAnchor: [3, 3]
                                                 })}
                                                 eventHandlers={{
-                                                    dragstart: () => {
+                                                    dragstart: (e) => {
+                                                        if (cable.isLocked) {
+                                                            alert('Esta fibra está em produção e não pode ser editada.');
+                                                            e.target.dragging.disable();
+                                                            return;
+                                                        }
+                                                        pushToHistory(cable.id, cable.points);
                                                         setDraggingMidpoint({ cableId: cable.id, index, latlng: new LatLng(midLat, midLng) });
                                                     },
                                                     drag: (e) => {
                                                         const marker = e.target;
-                                                        setDraggingMidpoint({ cableId: cable.id, index, latlng: marker.getLatLng() });
+                                                        const latlng = marker.getLatLng();
+                                                        const snapped = (snapConfig.enabled && mapInstance)
+                                                            ? getSnappedPosition(latlng, elements, mapInstance, snapConfig.radius).latlng
+                                                            : latlng;
+                                                        setDraggingMidpoint({ cableId: cable.id, index, latlng: snapped });
                                                     },
                                                     dragend: async (e) => {
+                                                        if (cable.isLocked) return;
                                                         const marker = e.target;
-                                                        const newLatLng = marker.getLatLng();
+                                                        const latlng = marker.getLatLng();
+                                                        const snapped = (snapConfig.enabled && mapInstance)
+                                                            ? getSnappedPosition(latlng, elements, mapInstance, snapConfig.radius).latlng
+                                                            : latlng;
                                                         const newPoints = [...cable.points];
-                                                        newPoints.splice(index + 1, 0, newLatLng);
+                                                        newPoints.splice(index + 1, 0, snapped);
 
                                                         // Update local elements state immediately for responsiveness
                                                         const updatedCables = elements.cables.map(c =>
@@ -1460,14 +1584,14 @@ const Map = () => {
                         );
                     })}
 
-                    {/* Render Poles */}
                     {elements.poles.map(pole => {
                         if (pole.latitude == null || pole.longitude == null) return null;
+                        const isOverloaded = parseFloat(pole.currentLoad || 0) > 100;
                         return (
                             <Marker
                                 key={pole.id}
                                 position={[pole.latitude, pole.longitude]}
-                                icon={createIcon('#3b82f6', 'circle')}
+                                icon={createIcon(isOverloaded ? '#ef4444' : '#3b82f6', 'circle')}
                                 draggable={true}
                                 eventHandlers={{
                                     click: (e) => handleElementClick(e, pole, 'pole'),
@@ -1567,6 +1691,27 @@ const Map = () => {
                                         }
                                     }}
                                 >
+                                    {isCTO && (
+                                        <Tooltip permanent={false} direction="top" offset={[0, -10]}>
+                                            <div className="bg-gray-900 text-white p-2 rounded-lg border border-gray-700 shadow-xl min-w-[120px]">
+                                                <div className="text-[10px] font-bold text-blue-400 uppercase mb-1">{box.name || 'CTO'}</div>
+                                                <div className="flex justify-between items-center gap-4">
+                                                    <span className="text-[9px] text-gray-400 uppercase">Portas Livres</span>
+                                                    <span className="text-xs font-black text-green-500">
+                                                        {(box.capacity || 16) - (elements.ctoCustomers || []).filter(c => c.boxId === box.id).length}
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-800 h-1 rounded-full mt-1 overflow-hidden">
+                                                    <div
+                                                        className="bg-green-500 h-full transition-all"
+                                                        style={{
+                                                            width: `${Math.max(0, Math.min(100, (1 - ((elements.ctoCustomers || []).filter(c => c.boxId === box.id).length / (box.capacity || 16))) * 100))}%`
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </Tooltip>
+                                    )}
                                     <Popup>
                                         <div className="text-center">
                                             <div className="font-bold">Caixa: {box.name || (box.type?.toUpperCase() || 'BOX')}</div>
@@ -1680,6 +1825,70 @@ const Map = () => {
                         );
                     })}
 
+                    {/* Heatmap Layer - Rendered as large transparent circles at customer clusters */}
+                    {showHeatmap && (elements.onus || []).map((onu, idx) => {
+                        if (onu.latitude == null || onu.longitude == null) return null;
+                        return (
+                            <Circle
+                                key={`heatmap-${idx}`}
+                                center={[onu.latitude, onu.longitude]}
+                                radius={40}
+                                pathOptions={{
+                                    fillColor: '#f97316',
+                                    color: 'transparent',
+                                    fillOpacity: 0.2,
+                                    className: 'animate-pulse'
+                                }}
+                                interactive={false}
+                            />
+                        );
+                    })}
+
+                    {/* Expansion Suggestions Layer */}
+                    {showingSuggestions && expansionSuggestions.map((sug, idx) => (
+                        <Marker
+                            key={`suggest-${idx}`}
+                            position={[sug.latitude, sug.longitude]}
+                            icon={divIcon({
+                                className: 'expansion-suggestion-icon',
+                                html: `<div class="bg-blue-500 border-2 border-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                </div>`,
+                                iconSize: [32, 32],
+                                iconAnchor: [16, 16]
+                            })}
+                        >
+                            <Popup>
+                                <div className="p-2 text-slate-900">
+                                    <div className="font-bold text-blue-600">Sugestão de Expansão</div>
+                                    <div className="text-xs mt-1">{sug.reason}</div>
+                                    <div className="text-[10px] text-gray-500 mt-1">Coordenadas: ${sug.latitude.toFixed(6)}, ${sug.longitude.toFixed(6)}</div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!projectId) return;
+                                            try {
+                                                await api.post('/network-elements/boxes', {
+                                                    projectId,
+                                                    latitude: sug.latitude,
+                                                    longitude: sug.longitude,
+                                                    type: 'cto',
+                                                    name: 'CTO-SUGGESTED'
+                                                });
+                                                setShowingSuggestions(false);
+                                                fetchElements();
+                                            } catch (err) {
+                                                console.error('Error accepting suggestion:', err);
+                                            }
+                                        }}
+                                        className="w-full bg-blue-600 text-white text-[10px] font-bold py-1 rounded mt-2 hover:bg-blue-700 transition-colors"
+                                    >
+                                        ACEITAR SUGESTÃO
+                                    </button>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    ))}
+
                     {/* Render Traced Path (Overlay - AFTER elements to ensure visibility) */}
                     {(tracedPath || []).map((item, idx) => {
                         if (item.type === 'cable') {
@@ -1704,6 +1913,49 @@ const Map = () => {
                         return null;
                     })}
 
+                    {/* Render Impact Path (Overlay - AFTER elements to ensure visibility) */}
+                    {(impactPath || []).map((item, idx) => {
+                        if (item.type === 'cable') {
+                            const cable = elements.cables.find(c => c.id === item.id);
+                            if (!cable) return null;
+                            return (
+                                <Polyline
+                                    key={`impact-${idx}`}
+                                    positions={cable.points}
+                                    pathOptions={{
+                                        color: '#ff0000', // Red glow for impact
+                                        weight: 10,
+                                        opacity: 0.9,
+                                        lineCap: 'round',
+                                        lineJoin: 'round',
+                                        dashArray: '10, 10',
+                                        className: 'animate-pulse'
+                                    }}
+                                />
+                            );
+                        } else if (item.type === 'box' || item.type === 'pole' || item.type === 'onu' || item.type === 'rbs') {
+                            return (
+                                <Marker
+                                    key={`impact-${idx}`}
+                                    position={[item.latitude, item.longitude]}
+                                    icon={divIcon({
+                                        className: 'impact-marker animate-pulse',
+                                        html: `<div style="background-color: #ff0000; width: 20px; height: 20px; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(255,0,0,0.8);"></div>`,
+                                        iconSize: [20, 20],
+                                        iconAnchor: [10, 10]
+                                    })}
+                                >
+                                    <Popup>
+                                        <div className="text-center">
+                                            <div className="font-bold text-red-500">AFETADO: {item.name || item.type.toUpperCase()}</div>
+                                            <div className="text-xs text-gray-500">ID: {item.id?.slice(0, 8)}</div>
+                                        </div>
+                                    </Popup>
+                                </Marker>
+                            );
+                        }
+                        return null;
+                    })}
 
 
                     {/* Pending Box Selection UI */}
@@ -1871,18 +2123,33 @@ const Map = () => {
                             </button>
                             <button
                                 onClick={() => {
-                                    setColorPicker({
-                                        isOpen: true,
-                                        cableId: contextMenu.element.id,
-                                        currentColor: contextMenu.element.colors || '#ff0000'
-                                    });
+                                    // Color selection now handled in properties sidebar
+                                    handleElementClick(null, contextMenu.element, 'cable');
                                     setContextMenu(null);
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
                             >
                                 <Palette size={14} className="text-gray-400 group-hover:text-blue-500" />
-                                <span>Editar Cor</span>
+                                <span>Propriedades</span>
                             </button>
+
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const { data } = await api.get(`/network-elements/trace-path`, {
+                                            params: { elementId: contextMenu.element.id, fiberIndex: 1 }
+                                        });
+                                        setImpactPath(data);
+                                        setContextMenu(null);
+                                        alert(`Simulação de Rompimento: ${data.length} elementos seriam afetados cascata abaixo.`);
+                                    } catch (err) { alert('Erro ao simular rompimento'); }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 text-[11px] font-medium transition-all text-left group border-t border-gray-100"
+                            >
+                                <Zap size={14} className="text-red-400 group-hover:text-red-500" />
+                                <span>Simular Rompimento Impacto</span>
+                            </button>
+
                             <div className="h-[1px] bg-gray-100 my-1" />
                             <button
                                 onClick={() => {
@@ -1986,6 +2253,10 @@ const Map = () => {
                             <div className="h-[1px] bg-gray-100 my-1" />
                             <button
                                 onClick={async () => {
+                                    if (contextMenu.element.isLocked) {
+                                        alert('Este cabo está em produção e não pode ser excluído.');
+                                        return;
+                                    }
                                     if (confirm(`Deseja excluir este cabo?`)) {
                                         try {
                                             await api.delete(`/network-elements/cables/${contextMenu.element.id}`);

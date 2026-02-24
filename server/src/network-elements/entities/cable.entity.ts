@@ -87,6 +87,18 @@ export class Cable {
   @Column({ type: 'simple-json', nullable: true })
   reserves: { poleId: string; length: number }[]; // Technical reserves per pole
 
+  @Column({ type: 'float', default: 0 })
+  reserveLength: number; // Sum of all reserves
+
+  @Column({ type: 'float', default: 0 })
+  totalLength: number; // length3D + slack + reserveLength
+
+  @Column({ default: false })
+  isLocked: boolean; // Production lock
+
+  @Column({ type: 'text', nullable: true })
+  geojson: string;
+
   @DeleteDateColumn()
   deletedAt: Date;
 }
