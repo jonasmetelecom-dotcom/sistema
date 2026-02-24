@@ -120,6 +120,16 @@ export class NetworkElementsController {
     return this.networkElementsService.createSplitter(data);
   }
 
+  @Post('cables/split')
+  async splitCable(@Body() body: { cableId: string, lat: number, lng: number }) {
+    return this.networkElementsService.splitCable(body.cableId, body.lat, body.lng);
+  }
+
+  @Post('cables/auto-poles')
+  async autoAssociatePoles(@Body('cableId') cableId: string) {
+    return this.networkElementsService.autoAssociatePoles(cableId);
+  }
+
   @Post('fusions')
   createFusion(@Body() data: any) {
     return this.networkElementsService.createFusion(data);
@@ -152,7 +162,7 @@ export class NetworkElementsController {
     @Param('id') id: string,
     @Body() data: Partial<CtoCustomer>,
   ) {
-    return this.networkElementsService.updateCtoCustomer(id, data);
+    return this.networkElementsService.createCtoCustomer({ ...data, id });
   }
 
   @Delete('cto-customers/:id')

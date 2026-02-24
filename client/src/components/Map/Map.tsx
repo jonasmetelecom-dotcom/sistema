@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, Fragment, useRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Zap, Box, Home, Radio, X } from 'lucide-react';
+import { Zap, Box, Home, Radio, X, Scissors, Edit3, Trash2 } from 'lucide-react';
 import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle } from 'react-leaflet';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -75,9 +75,10 @@ const MapController = ({ center, bounds, flyToTarget, onCancel }: { center: LatL
 const getSnappedPosition = (
     latlng: LatLng,
     elements: { poles: any[], boxes: any[] },
-    map: L.Map
+    map: L.Map,
+    radius: number = 20
 ): { latlng: LatLng, id?: string, type?: 'pole' | 'box' } => {
-    const snapDistancePixels = 30;
+    const snapDistancePixels = radius;
     let closest: { latlng: LatLng, id: string, type: 'pole' | 'box' } | null = null;
     let minDistance = Infinity;
 
@@ -374,6 +375,9 @@ const Map = () => {
     const [showCoverage, setShowCoverage] = useState(false);
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [mapImage, setMapImage] = useState<string | null>(null);
+    const [editingCableId, setEditingCableId] = useState<string | null>(null);
+    const [snapConfig, setSnapConfig] = useState({ enabled: true, radius: 20 });
+    const [contextMenu, setContextMenu] = useState<{ latlng: any, element: any, type: string } | null>(null);
     const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -710,56 +714,43 @@ const Map = () => {
         }
     };
 
-    const handleCreatePendingBox = async (type: 'ceo' | 'cto') => {
-        if (!pendingBoxAt || !projectId || !cableStart) return;
+    const handleCreatePendingBox = async (type: 'cto' | 'ceo') => {
+        if (!pendingBoxAt || !projectId || loading) return;
+        setLoading(true);
 
         try {
-            setLoading(true);
             const isCTO = type === 'cto';
-            const typeLabel = isCTO ? 'CTO' : 'CEO';
-            const defaultName = `${typeLabel}-${(elements.boxes.filter((b: any) => (isCTO ? (b.type === 'cto' || b.type === 'termination') : (b.type !== 'cto' && b.type !== 'termination'))).length + 1)}`;
+            const boxName = `${type.toUpperCase()}-${Math.floor(Date.now() / 1000).toString().slice(-4)}`;
 
-            // 1. Create Box
+            // Create the box
             const boxResponse = await api.post('/network-elements/boxes', {
-                projectId,
+                type: isCTO ? 'cto' : 'ceo',
+                name: boxName,
                 latitude: pendingBoxAt.lat,
                 longitude: pendingBoxAt.lng,
-                type: isCTO ? 'cto' : 'ceo',
-                capacity: isCTO ? 16 : 0,
-                name: defaultName
+                projectId
             });
 
-            const newBox = boxResponse.data;
-
-            // 2. Create Cable with full path
-            const newPath = [...cableStart.path, pendingBoxAt];
-
-            await api.post('/network-elements/cables', {
-                projectId,
-                type: cableSettings.type,
-                fiberCount: cableSettings.fiberCount,
-                points: newPath,
-                fromId: cableStart.elementId,
-                fromType: cableStart.elementType,
-                toId: newBox.id,
-                toType: 'box',
-                poleIds: cableStart.poles
-            });
-
-            // 3. Update continuous drawing
-            setCableStart({
-                latlng: pendingBoxAt,
-                elementId: newBox.id,
-                elementType: 'box',
-                path: [pendingBoxAt],
-                poles: []
-            });
+            // Create the cable if exists
+            if (activeTool === 'cable' && cableStart) {
+                await api.post('/network-elements/cables', {
+                    projectId,
+                    fromId: cableStart.elementId,
+                    fromType: cableStart.elementType,
+                    toId: boxResponse.data.id,
+                    toType: 'box',
+                    type: cableSettings.type,
+                    fiberCount: cableSettings.fiberCount,
+                    points: [...(cableStart.path || []), pendingBoxAt]
+                });
+            }
 
             setPendingBoxAt(null);
-            fetchElements();
+            setCableStart(null);
+            await fetchElements();
         } catch (error) {
-            console.error('Error creating pending box and cable:', error);
-            alert('Erro ao criar caixa e cabo');
+            console.error('Error creating pending box:', error);
+            alert('Erro ao criar caixa. Tente novamente.');
         } finally {
             setLoading(false);
         }
@@ -776,7 +767,6 @@ const Map = () => {
             alert('Erro ao limpar projeto.');
         }
     };
-
 
     const handleSearch = (query: string) => {
         setSearchQuery(query);
@@ -802,7 +792,26 @@ const Map = () => {
         setSearchResults(results);
     };
 
-    const handleJumpTo = (item: any) => {
+    const handleSplitCable = async (cable: any, latlng: any) => {
+        if (!projectId || loading) return;
+        setLoading(true);
+        try {
+            await api.post('/network-elements/cables/split', {
+                cableId: cable.id,
+                lat: latlng.lat,
+                lng: latlng.lng
+            });
+            await fetchElements();
+            alert('Cabo dividido com sucesso!');
+        } catch (error) {
+            console.error('Error splitting cable:', error);
+            alert('Erro ao dividir cabo.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleJumpToNodes = (item: any) => {
         if (item.latitude != null && item.longitude != null) {
             setFlyToTarget(new LatLng(item.latitude, item.longitude));
             setSelectedElement({ ...item, type: item.resultType });
@@ -820,6 +829,22 @@ const Map = () => {
             {loading && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-pulse">
                     Atualizando Mapa...
+                </div>
+            )}
+
+            {editingCableId && (
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2">
+                    <button
+                        onClick={async () => {
+                            setEditingCableId(null);
+                            fetchElements();
+                            alert('Geometria salva e postes vinculados!');
+                        }}
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-2xl text-sm font-black shadow-[0_10px_40px_rgba(37,99,235,0.4)] flex items-center gap-3 border border-white/20 hover:scale-105 active:scale-95 transition-all animate-in slide-in-from-top-4"
+                    >
+                        <Box size={18} /> SALVAR GEOMETRIA
+                    </button>
+                    <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">Arraste os pontos brancos para editar</span>
                 </div>
             )}
 
@@ -850,6 +875,8 @@ const Map = () => {
                 showInventory={showInventory}
                 showCoverage={showCoverage}
                 onToggleCoverage={() => setShowCoverage(!showCoverage)}
+                snapConfig={snapConfig}
+                onSnapConfigChange={setSnapConfig}
                 readOnly={readOnly}
             />
 
@@ -882,7 +909,7 @@ const Map = () => {
                         {searchResults.map((result) => (
                             <button
                                 key={`${result.resultType}-${result.id}`}
-                                onClick={() => handleJumpTo(result)}
+                                onClick={() => handleJumpToNodes(result)}
                                 className="w-full p-3 flex items-center gap-3 hover:bg-gray-800 border-b border-gray-800 text-left transition-colors group"
                             >
                                 <div className={`p-2 rounded-lg ${result.resultType === 'pole' ? 'bg-yellow-500/20 text-yellow-500' : result.resultType === 'onu' ? 'bg-cyan-500/20 text-cyan-500' : result.resultType === 'rbs' ? 'bg-purple-500/20 text-purple-500' : 'bg-green-500/20 text-green-500'}`}>
@@ -1112,6 +1139,14 @@ const Map = () => {
                                             eventHandlers={{
                                                 click: async (e) => {
                                                     handleElementClick(e, cable, 'cable');
+                                                },
+                                                contextmenu: (e) => {
+                                                    L.DomEvent.stopPropagation(e);
+                                                    setContextMenu({
+                                                        latlng: { x: (e as any).originalEvent.clientX, y: (e as any).originalEvent.clientY },
+                                                        element: cable,
+                                                        type: 'cable'
+                                                    });
                                                 }
                                             }}
                                         >
@@ -1160,8 +1195,8 @@ const Map = () => {
                                     </>
                                 )}
 
-                                {/* Draggable Points for Selected Cable */}
-                                {isSelected && cable.points && cable.points.map((point: LatLng, index: number) => {
+                                {/* Draggable Points for Editing Cable */}
+                                {editingCableId === cable.id && cable.points && cable.points.map((point: LatLng, index: number) => {
                                     if (point.lat == null || point.lng == null) return null;
                                     return (
                                         <Marker
@@ -1189,12 +1224,13 @@ const Map = () => {
                                                     );
                                                     setElements({ ...elements, cables: updatedCables });
 
-                                                    // Persist to backend
+                                                    // Persist to backend and re-associate poles (A4)
                                                     try {
                                                         await api.patch(`/network-elements/cables/${cable.id}`, {
                                                             points: newPoints
                                                         });
-                                                        console.log('Cable geometry updated');
+                                                        await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
+                                                        console.log('Cable geometry and poles updated');
                                                     } catch (error) {
                                                         console.error('Error updating cable geometry:', error);
                                                     }
@@ -1215,6 +1251,44 @@ const Map = () => {
                                         />
                                     );
                                 })}
+
+                                {/* Midpoint Insertion for Editing (OZMap Style) */}
+                                {editingCableId === cable.id && cable.points && cable.points.map((point: LatLng, index: number) => {
+                                    if (index === cable.points.length - 1) return null;
+                                    const nextPoint = cable.points[index + 1];
+                                    const midLat = (point.lat + nextPoint.lat) / 2;
+                                    const midLng = (point.lng + nextPoint.lng) / 2;
+
+                                    return (
+                                        <Marker
+                                            key={`${cable.id}-mid-${index}`}
+                                            position={[midLat, midLng]}
+                                            icon={divIcon({
+                                                className: 'midpoint-icon',
+                                                html: `<div style="background-color: white; width: 6px; height: 6px; border: 2px solid #3b82f6; border-radius: 50%; opacity: 0.5;"></div>`,
+                                                iconSize: [6, 6],
+                                                iconAnchor: [3, 3]
+                                            })}
+                                            eventHandlers={{
+                                                click: async (e) => {
+                                                    const newPoints = [...cable.points];
+                                                    newPoints.splice(index + 1, 0, new LatLng(midLat, midLng));
+
+                                                    // Update elements state
+                                                    const updatedCables = elements.cables.map(c =>
+                                                        c.id === cable.id ? { ...c, points: newPoints } : c
+                                                    );
+                                                    setElements({ ...elements, cables: updatedCables });
+
+                                                    // Persist
+                                                    try {
+                                                        await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
+                                                    } catch (err) { console.error(err); }
+                                                }
+                                            }}
+                                        />
+                                    );
+                                })}
                             </div>
                         );
                     })}
@@ -1230,7 +1304,14 @@ const Map = () => {
                                 draggable={true}
                                 eventHandlers={{
                                     click: (e) => handleElementClick(e, pole, 'pole'),
-                                    contextmenu: (e) => handleElementClick(e, pole, 'pole'),
+                                    contextmenu: (e) => {
+                                        L.DomEvent.stopPropagation(e);
+                                        setContextMenu({
+                                            latlng: { x: (e as any).originalEvent.clientX, y: (e as any).originalEvent.clientY },
+                                            element: pole,
+                                            type: 'pole'
+                                        });
+                                    },
                                     dragend: async (e) => {
                                         const marker = e.target;
                                         const newLatLng = marker.getLatLng();
@@ -1289,7 +1370,14 @@ const Map = () => {
                                     draggable={true}
                                     eventHandlers={{
                                         click: (e) => handleElementClick(e, box, 'box'),
-                                        contextmenu: (e) => handleElementClick(e, box, 'box'),
+                                        contextmenu: (e) => {
+                                            L.DomEvent.stopPropagation(e);
+                                            setContextMenu({
+                                                latlng: { x: (e as any).originalEvent.clientX, y: (e as any).originalEvent.clientY },
+                                                element: box,
+                                                type: 'box'
+                                            });
+                                        },
                                         dragend: async (e) => {
                                             const marker = e.target;
                                             const newLatLng = marker.getLatLng();
@@ -1570,25 +1658,92 @@ const Map = () => {
 
 
 
-            {/* Undo Toast */}
-            {
-                deletedItem && (
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in">
-                        <span>Elemento excluído</span>
-                        <button
-                            onClick={handleUndo}
-                            className="text-blue-400 font-bold hover:text-blue-300 uppercase text-sm tracking-wide"
-                        >
-                            Desfazer
-                        </button>
-                        <button
-                            onClick={() => setDeletedItem(null)}
-                            className="text-gray-500 hover:text-gray-300 ml-2"
-                        >
-                            ✕
-                        </button>
+            {/* Context Menu (A6) */}
+            {contextMenu && (
+                <div
+                    className="fixed z-[9999] bg-gray-950/90 border border-gray-700/50 rounded-xl shadow-2xl py-1.5 min-w-[200px] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+                    style={{ top: contextMenu.latlng.y, left: contextMenu.latlng.x }}
+                >
+                    <div className="px-3 py-1 border-b border-gray-800/50 mb-1">
+                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">Opções: {contextMenu.type.toUpperCase()}</span>
                     </div>
-                )
+
+                    {contextMenu.type === 'cable' && (
+                        <>
+                            <button
+                                onClick={() => {
+                                    setEditingCableId(contextMenu.element.id);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-600/20 text-blue-400 text-xs font-bold transition-all text-left"
+                            >
+                                <Edit3 size={14} /> Editar Geometria
+                            </button>
+                            <button
+                                onClick={() => {
+                                    handleSplitCable(contextMenu.element, contextMenu.latlng);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-orange-600/20 text-orange-400 text-xs font-bold transition-all text-left"
+                            >
+                                <Scissors size={14} /> Inserir Caixa (Split)
+                            </button>
+                        </>
+                    )}
+
+                    {contextMenu.type === 'box' && (
+                        <button
+                            onClick={() => {
+                                setViewingBoxId(contextMenu.element.id);
+                                setContextMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-emerald-600/20 text-emerald-400 text-xs font-bold transition-all text-left"
+                        >
+                            <Box size={14} /> Ver Interno
+                        </button>
+                    )}
+
+                    <button
+                        onClick={async () => {
+                            if (confirm(`Deseja excluir este ${contextMenu.type === 'cable' ? 'cabo' : 'elemento'}?`)) {
+                                try {
+                                    await api.delete(`/network-elements/${contextMenu.type}s/${contextMenu.element.id}`);
+                                    fetchElements();
+                                    setContextMenu(null);
+                                } catch (err) { alert('Erro ao excluir'); }
+                            }
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-600/20 text-red-500 text-xs font-bold transition-all text-left mt-1 border-t border-gray-800/50"
+                    >
+                        <Trash2 size={14} /> Excluir
+                    </button>
+                    <button
+                        onClick={() => setContextMenu(null)}
+                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-700/20 text-gray-400 text-xs font-bold transition-all text-left mt-1 border-t border-gray-800/50"
+                    >
+                        <X size={14} /> Fechar
+                    </button>
+                </div>
+            )}
+
+            {/* Undo Toast */}
+            {deletedItem && (
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000] bg-gray-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in">
+                    <span>Elemento excluído</span>
+                    <button
+                        onClick={handleUndo}
+                        className="text-blue-400 font-bold hover:text-blue-300 uppercase text-sm tracking-wide"
+                    >
+                        Desfazer
+                    </button>
+                    <button
+                        onClick={() => setDeletedItem(null)}
+                        className="text-gray-500 hover:text-gray-300 ml-2"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )
             }
         </div>
     );

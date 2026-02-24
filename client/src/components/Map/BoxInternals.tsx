@@ -196,20 +196,22 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
     const handleSaveCustomer = async () => {
         if (!customerDialog || !projectId) return;
         try {
+            const customerData = {
+                boxId,
+                splitterId: customerDialog.splitterId,
+                portIndex: customerDialog.portIndex,
+                name: customerDialog.name,
+                observation: customerDialog.observation,
+                externalId: (customerDialog as any).externalId,
+                status: (customerDialog as any).status || 'active',
+                description: (customerDialog as any).description,
+                projectId
+            };
+
             if (customerDialog.customerId) {
-                await api.patch(`/network-elements/cto-customers/${customerDialog.customerId}`, {
-                    name: customerDialog.name,
-                    observation: customerDialog.observation
-                });
+                await api.patch(`/network-elements/cto-customers/${customerDialog.customerId}`, customerData);
             } else {
-                await api.post('/network-elements/cto-customers', {
-                    boxId,
-                    splitterId: customerDialog.splitterId,
-                    portIndex: customerDialog.portIndex,
-                    name: customerDialog.name,
-                    observation: customerDialog.observation,
-                    projectId
-                });
+                await api.post('/network-elements/cto-customers', customerData);
             }
             setCustomerDialog(null);
             fetchData();
@@ -541,6 +543,15 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
 
                                                                     const customer = data?.ctoCustomers?.find((c: any) => c.splitterId === splitter.id && parseInt(c.portIndex) === idx);
 
+                                                                    const getStatusColor = (status: string) => {
+                                                                        switch (status) {
+                                                                            case 'reserved': return 'bg-yellow-500 border-yellow-600';
+                                                                            case 'blocked': return 'bg-red-500 border-red-600';
+                                                                            case 'free': return 'bg-gray-600 border-gray-700';
+                                                                            default: return 'bg-orange-500 border-orange-600'; // active
+                                                                        }
+                                                                    };
+
                                                                     return (
                                                                         <div
                                                                             key={idx}
@@ -557,9 +568,9 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                                                                             }}
                                                                             className={`w-6 h-6 rounded-md border-2 cursor-pointer transition-all hover:scale-110 relative group flex items-center justify-center
                                                                     ${isSelected ? `border-white ring-2 ${connectorRing}` : ''}
-                                                                    ${customer ? 'bg-orange-500 border-orange-600 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : portColor}
+                                                                    ${customer ? `${getStatusColor(customer.status)} shadow-[0_0_8px_rgba(249,115,22,0.5)]` : portColor}
                                                                 `}
-                                                                            title={customer ? `Cliente: ${customer.name}\n${customer.observation || ''}` : `Porta ${idx} - Livre`}
+                                                                            title={customer ? `Cliente: ${customer.name}\nStatus: ${customer.status}\n${customer.observation || ''}` : `Porta ${idx} - Livre`}
                                                                         >
                                                                             {customer ? (
                                                                                 <span className="text-[10px] font-black text-white uppercase leading-none drop-shadow-sm">
@@ -780,48 +791,101 @@ export const BoxInternals = ({ boxId, onClose }: BoxInternalsProps) => {
                             </button>
                         </div>
                         <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Nome do Cliente</label>
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={customerDialog.name}
+                                        onChange={(e) => setCustomerDialog({ ...customerDialog, name: e.target.value })}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        placeholder="Ex: Carlos Alberto"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">ID Externo (IXC/ERP)</label>
+                                    <input
+                                        type="text"
+                                        value={(customerDialog as any).externalId || ''}
+                                        onChange={(e) => setCustomerDialog({ ...customerDialog, externalId: e.target.value } as any)}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        placeholder="Ex: 12345"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Status da Porta</label>
+                                    <select
+                                        value={(customerDialog as any).status || 'active'}
+                                        onChange={(e) => setCustomerDialog({ ...customerDialog, status: e.target.value } as any)}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    >
+                                        <option value="active">Ativa</option>
+                                        <option value="reserved">Reservada</option>
+                                        <option value="blocked">Bloqueada</option>
+                                        <option value="free">Livre</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Porta</label>
+                                    <div className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-4 py-2.5 text-gray-500 font-mono">
+                                        P{customerDialog.portIndex}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div>
-                                <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Nome do Cliente</label>
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    value={customerDialog.name}
-                                    onChange={(e) => setCustomerDialog({ ...customerDialog, name: e.target.value })}
-                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    placeholder="Ex: Carlos Alberto"
+                                <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Descrição do Contrato</label>
+                                <textarea
+                                    value={(customerDialog as any).description || ''}
+                                    onChange={(e) => setCustomerDialog({ ...customerDialog, description: e.target.value } as any)}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all h-20 resize-none font-sans"
+                                    placeholder="Detalhes adicionais do cliente ou serviço..."
                                 />
                             </div>
+
                             <div>
-                                <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Observações / Endereço</label>
+                                <label className="block text-xs font-medium text-gray-400 mb-1 uppercase">Observações Técnicas</label>
                                 <textarea
                                     value={customerDialog.observation}
                                     onChange={(e) => setCustomerDialog({ ...customerDialog, observation: e.target.value })}
-                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all h-20 resize-none"
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all h-16 resize-none"
                                     placeholder="Complemento, apto, referência..."
                                 />
                             </div>
                         </div>
+
                         <div className="p-4 bg-gray-950 border-t border-gray-800 flex justify-between gap-3">
-                            {customerDialog.customerId && (
-                                <button
-                                    onClick={() => handleDeleteCustomer(customerDialog.customerId!)}
-                                    className="px-4 py-2 text-red-400 hover:bg-red-400/10 rounded-lg text-sm font-medium transition-colors"
-                                >
-                                    Excluir Registro
-                                </button>
-                            )}
-                            <div className="flex gap-3 ml-auto">
+                            <div className="flex gap-2">
+                                {customerDialog.customerId && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm('Limpar porta e remover cadastro do cliente?')) {
+                                                handleDeleteCustomer(customerDialog.customerId!);
+                                                setCustomerDialog(null);
+                                            }
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-lg transition-all text-sm font-bold border border-red-600/30"
+                                    >
+                                        <Trash2 size={16} /> Limpar Porta
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
                                 <button
                                     onClick={() => setCustomerDialog(null)}
-                                    className="px-4 py-2 text-gray-400 hover:text-white text-sm font-medium"
+                                    className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm font-medium"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={handleSaveCustomer}
-                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+                                    className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all text-sm"
                                 >
-                                    Salvar Alterações
+                                    Salvar Cadastro
                                 </button>
                             </div>
                         </div>

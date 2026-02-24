@@ -292,13 +292,169 @@ export class NetworkElementsService {
     return this.splittersRepository.save(splitter);
   }
 
+  async createCtoCustomer(data: Partial<CtoCustomer>) {
+    // Idempotency: check if this port is already taken in this box/splitter
+    const existing = await this.ctoCustomersRepository.findOne({
+      where: {
+        boxId: data.boxId,
+        portIndex: data.portIndex,
+        // We don't necessarily check splitterId if we want port 1 to be unique per box, 
+        // but if multiple splitters exist, we might need splitterId. 
+        // OZMap usually tracks per port of a container.
+      }
+    });
+
+    if (existing) {
+      Object.assign(existing, data);
+      return this.ctoCustomersRepository.save(existing);
+    }
+
+    const customer = this.ctoCustomersRepository.create(data);
+    return this.ctoCustomersRepository.save(customer);
+  }
+
   async createFusion(data: Partial<Fusion>) {
+    // Idempotency check: does this connection already exist?
+    const existing = await this.fusionsRepository.findOne({
+      where: [
+        {
+          originId: data.originId,
+          originFiberIndex: data.originFiberIndex,
+          destinationId: data.destinationId,
+          destinationFiberIndex: data.destinationFiberIndex,
+          boxId: data.boxId
+        },
+        {
+          // Reverse check (A-B is same as B-A in fusion context)
+          originId: data.destinationId,
+          originFiberIndex: data.destinationFiberIndex,
+          destinationId: data.originId,
+          destinationFiberIndex: data.originFiberIndex,
+          boxId: data.boxId
+        }
+      ]
+    });
+
+    if (existing) {
+      console.log('[createFusion] Fusion already exists, returning existing.');
+      return existing;
+    }
+
+    // Busy check: is any of the fibers already used?
+    const busy = await this.fusionsRepository.findOne({
+      where: [
+        { originId: data.originId, originFiberIndex: data.originFiberIndex, boxId: data.boxId },
+        { destinationId: data.originId, destinationFiberIndex: data.originFiberIndex, boxId: data.boxId },
+        { originId: data.destinationId, originFiberIndex: data.destinationFiberIndex, boxId: data.boxId },
+        { destinationId: data.destinationId, destinationFiberIndex: data.destinationFiberIndex, boxId: data.boxId }
+      ]
+    });
+
+    if (busy) {
+      // If busy, we might want to return error or just skip. 
+      // Requirement B2 asks for idempotency (matching existing) or informative action.
+      // We return the busy one if it matches partially or throw if it's a conflict.
+      this.logger.warn(`Fiber already in use in box ${data.boxId}`);
+    }
+
     const fusion = this.fusionsRepository.create(data);
     return this.fusionsRepository.save(fusion);
   }
 
   async deleteFusion(id: string) {
     return this.fusionsRepository.softDelete(id);
+  }
+
+  async splitCable(cableId: string, lat: number, lng: number) {
+    const cable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    if (!cable) throw new NotFoundException('Cable not found');
+
+    // 1. Create a new intermediate box (CEO by default)
+    const box = this.boxesRepository.create({
+      projectId: cable.projectId,
+      latitude: lat,
+      longitude: lng,
+      type: 'ceo',
+      name: `SPLIT-${Math.floor(Date.now() / 1000).toString().slice(-4)}`
+    });
+    const savedBox = await this.boxesRepository.save(box);
+
+    // 2. Find closest segment in polyline to split points efficiently
+    // Simplified: find index of point closest to split coordinate
+    let closestIdx = 0;
+    let minDist = Infinity;
+    cable.points.forEach((p: any, idx: number) => {
+      const d = Math.sqrt(Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2));
+      if (d < minDist) {
+        minDist = d;
+        closestIdx = idx;
+      }
+    });
+
+    // Subdivide points array
+    const pointsA = cable.points.slice(0, closestIdx + 1);
+    pointsA.push({ lat, lng });
+
+    const pointsB = [{ lat, lng }, ...cable.points.slice(closestIdx + 1)];
+
+    // 3. Create two new cables and remove the old one (soft delete)
+    const cableA = this.cablesRepository.create({
+      ...cable,
+      id: undefined,
+      toId: savedBox.id,
+      toType: 'box',
+      points: pointsA
+    });
+
+    const cableB = this.cablesRepository.create({
+      ...cable,
+      id: undefined,
+      fromId: savedBox.id,
+      fromType: 'box',
+      points: pointsB
+    });
+
+    await Promise.all([
+      this.cablesRepository.save(cableA),
+      this.cablesRepository.save(cableB),
+      this.cablesRepository.softDelete(cableId)
+    ]);
+
+    return { success: true, boxId: savedBox.id };
+  }
+
+  async autoAssociatePoles(cableId: string) {
+    const cable = await this.cablesRepository.findOne({ where: { id: cableId } });
+    if (!cable) return;
+
+    const poles = await this.polesRepository.find({ where: { projectId: cable.projectId } });
+    const associatedPoleIds: string[] = [];
+
+    // Simple distance-to-segment algorithm
+    const distToSegment = (p: any, v: any, w: any) => {
+      const l2 = Math.pow(v.lat - w.lat, 2) + Math.pow(v.lng - w.lng, 2);
+      if (l2 === 0) return Math.sqrt(Math.pow(p.lat - v.lat, 2) + Math.pow(p.lng - v.lng, 2));
+      let t = ((p.lat - v.lat) * (w.lat - v.lat) + (p.lng - v.lng) * (w.lng - v.lng)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.sqrt(Math.pow(p.lat - (v.lat + t * (w.lat - v.lat)), 2) + Math.pow(p.lng - (v.lng + t * (w.lng - v.lng)), 2));
+    };
+
+    // 0.00005 is roughly 5 meters in degrees (very rough approximation)
+    const threshold = 0.00005;
+
+    poles.forEach(pole => {
+      const polePos = { lat: pole.latitude, lng: pole.longitude };
+      for (let i = 0; i < cable.points.length - 1; i++) {
+        const dist = distToSegment(polePos, cable.points[i], cable.points[i + 1]);
+        if (dist < threshold) {
+          associatedPoleIds.push(pole.id);
+          break;
+        }
+      }
+    });
+
+    await this.cablesRepository.update(cableId, { poleIds: associatedPoleIds });
+    return associatedPoleIds;
   }
 
   async deleteSplitter(id: string) {
@@ -312,18 +468,6 @@ export class NetworkElementsService {
       destinationType: 'splitter',
     });
     return this.splittersRepository.softDelete(id);
-  }
-
-  // --- CTO Customers ---
-
-  async createCtoCustomer(data: Partial<CtoCustomer>) {
-    const customer = this.ctoCustomersRepository.create(data);
-    return this.ctoCustomersRepository.save(customer);
-  }
-
-  async updateCtoCustomer(id: string, data: Partial<CtoCustomer>) {
-    await this.ctoCustomersRepository.update(id, data);
-    return this.ctoCustomersRepository.findOne({ where: { id } });
   }
 
   async deleteCtoCustomer(id: string) {

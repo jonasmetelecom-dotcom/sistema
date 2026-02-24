@@ -41,6 +41,8 @@ interface NetworkToolbarProps {
     showInventory?: boolean;
     showCoverage?: boolean;
     onToggleCoverage?: () => void;
+    snapConfig?: { enabled: boolean, radius: number };
+    onSnapConfigChange?: (config: { enabled: boolean, radius: number }) => void;
     readOnly?: boolean;
 }
 
@@ -59,6 +61,8 @@ export const NetworkToolbar = ({
     showInventory,
     showCoverage,
     onToggleCoverage,
+    snapConfig,
+    onSnapConfigChange,
     readOnly
 }: NetworkToolbarProps) => {
     const { isTechnicianMode } = useUIStore();
@@ -132,6 +136,16 @@ export const NetworkToolbar = ({
                     icon={<FileText size={20} />}
                     label="Memorial"
                     className="text-gray-300"
+                />
+
+                <div className="h-px bg-gray-700 my-1 mx-2" />
+
+                <ToolbarItem
+                    active={!!snapConfig?.enabled}
+                    onClick={() => onSnapConfigChange?.({ ...snapConfig!, enabled: !snapConfig?.enabled })}
+                    icon={<Layers size={20} className={snapConfig?.enabled ? "text-blue-400" : "text-gray-500"} />}
+                    label="Snap"
+                    className={snapConfig?.enabled ? "text-blue-400" : "text-gray-500"}
                 />
 
                 {!readOnly && !isTechnicianMode && (
