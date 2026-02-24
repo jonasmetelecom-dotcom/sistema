@@ -17,9 +17,10 @@ interface SidebarPropertiesProps {
     onOpenInternals?: (id: string) => void;
     onTrace?: (elementId: string, fiberIndex: number) => void;
     onDelete?: (id: string, type: 'pole' | 'box' | 'cable' | 'onu' | 'rbs') => void;
+    elements?: any;
 }
 
-export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onOpenInternals, onTrace, onDelete }: SidebarPropertiesProps) => {
+export const SidebarProperties = ({ element, elementType, elements, onClose, onUpdate, onOpenInternals, onTrace, onDelete }: SidebarPropertiesProps) => {
     const [formData, setFormData] = useState<any>({});
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'general' | 'engineering'>('general');
@@ -32,6 +33,11 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
             setFormData({ ...element });
             setActiveTab('general');
             setLinkBudget(null);
+
+            // Ensure reserves is an array
+            if (elementType === 'cable' && !element.reserves) {
+                setFormData((prev: any) => ({ ...prev, reserves: [] }));
+            }
 
             if (elementType === 'cable') {
                 fetchLinkBudget(element.id, 1);
@@ -72,6 +78,28 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
         } finally {
             setLoading(false);
         }
+    };
+
+    const getElementName = (id: string, type: string) => {
+        if (!elements) return id?.slice(0, 8);
+        const list = type === 'pole' ? elements.poles : elements.boxes;
+        const item = list?.find((e: any) => e.id === id);
+        return item?.name || `${type.toUpperCase()} - ${id?.slice(0, 8)}`;
+    };
+
+    const handleReserveChange = (poleId: string, length: number) => {
+        const currentReserves = [...(formData.reserves || [])];
+        const idx = currentReserves.findIndex((r: any) => r.poleId === poleId);
+        if (idx >= 0) {
+            currentReserves[idx].length = length;
+        } else {
+            currentReserves.push({ poleId, length });
+        }
+        setFormData((prev: any) => ({ ...prev, reserves: currentReserves }));
+    };
+
+    const getReserveValue = (poleId: string) => {
+        return (formData.reserves || []).find((r: any) => r.poleId === poleId)?.length || 0;
     };
 
     if (!element) return null;
@@ -489,14 +517,19 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                             <div className="flex items-center justify-between bg-gray-900/40 p-1.5 rounded border border-gray-800/50">
                                                 <div className="flex flex-col min-w-0">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold">Início ({formData.fromType})</span>
-                                                    <span className="text-[10px] text-white truncate">{formData.fromId?.slice(0, 8)}</span>
+                                                    <span className="text-[10px] text-white truncate">{getElementName(formData.fromId, formData.fromType)}</span>
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
-                                                    placeholder="0m"
-                                                    title="Reserva Inicial"
-                                                />
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={getReserveValue(formData.fromId)}
+                                                        onChange={(e) => handleReserveChange(formData.fromId, parseFloat(e.target.value) || 0)}
+                                                        className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                        placeholder="0m"
+                                                        title="Reserva Inicial"
+                                                    />
+                                                    <span className="text-[9px] text-gray-600">m</span>
+                                                </div>
                                             </div>
 
                                             {/* Intermediate Poles */}
@@ -504,14 +537,19 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                                 <div key={idx} className="flex items-center justify-between bg-gray-800/30 p-1.5 rounded border border-gray-800/30">
                                                     <div className="flex flex-col min-w-0">
                                                         <span className="text-[9px] text-blue-500/70 uppercase font-bold">Poste {idx + 1}</span>
-                                                        <span className="text-[10px] text-gray-300 truncate">{pId.slice(0, 8)}</span>
+                                                        <span className="text-[10px] text-gray-300 truncate">{getElementName(pId, 'pole')}</span>
                                                     </div>
-                                                    <input
-                                                        type="number"
-                                                        className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
-                                                        placeholder="0m"
-                                                        title={`Reserva no Poste ${idx + 1}`}
-                                                    />
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            value={getReserveValue(pId)}
+                                                            onChange={(e) => handleReserveChange(pId, parseFloat(e.target.value) || 0)}
+                                                            className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                            placeholder="0m"
+                                                            title={`Reserva no Poste ${idx + 1}`}
+                                                        />
+                                                        <span className="text-[9px] text-gray-600">m</span>
+                                                    </div>
                                                 </div>
                                             ))}
 
@@ -519,14 +557,19 @@ export const SidebarProperties = ({ element, elementType, onClose, onUpdate, onO
                                             <div className="flex items-center justify-between bg-gray-900/40 p-1.5 rounded border border-gray-800/50">
                                                 <div className="flex flex-col min-w-0">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold">Fim ({formData.toType})</span>
-                                                    <span className="text-[10px] text-white truncate">{formData.toId?.slice(0, 8)}</span>
+                                                    <span className="text-[10px] text-white truncate">{getElementName(formData.toId, formData.toType)}</span>
                                                 </div>
-                                                <input
-                                                    type="number"
-                                                    className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1"
-                                                    placeholder="0m"
-                                                    title="Reserva Final"
-                                                />
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={getReserveValue(formData.toId)}
+                                                        onChange={(e) => handleReserveChange(formData.toId, parseFloat(e.target.value) || 0)}
+                                                        className="w-14 bg-gray-800 border-none rounded text-right text-[10px] text-white p-1 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                        placeholder="0m"
+                                                        title="Reserva Final"
+                                                    />
+                                                    <span className="text-[9px] text-gray-600">m</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

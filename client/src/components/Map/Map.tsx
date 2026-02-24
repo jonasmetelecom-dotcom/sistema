@@ -929,18 +929,21 @@ const Map = () => {
                     </div>
                 )}
             </div>
-            <SidebarProperties
-                element={selectedElement}
-                elementType={selectedElement?.type || null}
-                onClose={() => setSelectedElement(null)}
-                onUpdate={() => {
-                    fetchElements();
-                    setSelectedElement(null);
-                }}
-                onOpenInternals={(id) => setViewingBoxId(id)}
-                onTrace={handleTrace}
-                onDelete={handleDelete}
-            />
+            {!viewingBoxId && (
+                <SidebarProperties
+                    element={selectedElement}
+                    elementType={selectedElement?.type || null}
+                    elements={elements}
+                    onClose={() => setSelectedElement(null)}
+                    onUpdate={() => {
+                        fetchElements();
+                        setSelectedElement(null);
+                    }}
+                    onOpenInternals={(id) => setViewingBoxId(id)}
+                    onTrace={handleTrace}
+                    onDelete={handleDelete}
+                />
+            )}
 
             {viewingBoxId && (
                 <BoxInternals
@@ -1270,7 +1273,7 @@ const Map = () => {
                                                 iconAnchor: [3, 3]
                                             })}
                                             eventHandlers={{
-                                                click: async (e) => {
+                                                click: async () => {
                                                     const newPoints = [...cable.points];
                                                     newPoints.splice(index + 1, 0, new LatLng(midLat, midLng));
 
