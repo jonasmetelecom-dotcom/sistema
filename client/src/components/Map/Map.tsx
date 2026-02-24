@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, Fragment, useRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Zap, Box, Home, Radio, X, Scissors, Edit3, Trash2 } from 'lucide-react';
+import { Zap, Box, Home, Radio, X, Edit3, Trash2, Settings, Search, Palette, Repeat, BadgeCheck, Mountain, Link, Link2, RefreshCw, RefreshCcw, CircleOff, Layers, MousePointer2 } from 'lucide-react';
 import { MapContainer, TileLayer, ZoomControl, useMap, useMapEvents, Marker, Popup, Polyline, LayersControl, Circle } from 'react-leaflet';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -378,6 +378,7 @@ const Map = () => {
     const [rulerPoints, setRulerPoints] = useState<LatLng[]>([]);
     const [mapImage, setMapImage] = useState<string | null>(null);
     const [editingCableId, setEditingCableId] = useState<string | null>(null);
+    const [draggingMidpoint, setDraggingMidpoint] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [snapConfig, setSnapConfig] = useState({ enabled: true, radius: 20 });
     const [contextMenu, setContextMenu] = useState<{ latlng: any, element: any, type: string } | null>(null);
     const [pendingBoxAt, setPendingBoxAt] = useState<LatLng | null>(null);
@@ -1257,7 +1258,7 @@ const Map = () => {
                                     );
                                 })}
 
-                                {/* Midpoint Insertion for Editing (OZMap Style) */}
+                                {/* Midpoint Insertion and Flexible Editing (OZMap Style) */}
                                 {editingCableId === cable.id && cable.points && cable.points.map((point: LatLng, index: number) => {
                                     if (index === cable.points.length - 1) return null;
                                     const nextPoint = cable.points[index + 1];
@@ -1265,33 +1266,70 @@ const Map = () => {
                                     const midLng = (point.lng + nextPoint.lng) / 2;
 
                                     return (
-                                        <Marker
-                                            key={`${cable.id}-mid-${index}`}
-                                            position={[midLat, midLng]}
-                                            icon={divIcon({
-                                                className: 'midpoint-icon',
-                                                html: `<div style="background-color: white; width: 6px; height: 6px; border: 2px solid #3b82f6; border-radius: 50%; opacity: 0.5;"></div>`,
-                                                iconSize: [6, 6],
-                                                iconAnchor: [3, 3]
-                                            })}
-                                            eventHandlers={{
-                                                click: async () => {
-                                                    const newPoints = [...cable.points];
-                                                    newPoints.splice(index + 1, 0, new LatLng(midLat, midLng));
+                                        <Fragment key={`${cable.id}-mid-group-${index}`}>
+                                            {/* Ghost line while dragging mid-point */}
+                                            {draggingMidpoint && draggingMidpoint.cableId === cable.id && draggingMidpoint.index === index && (
+                                                <Polyline
+                                                    positions={[point, draggingMidpoint.latlng, nextPoint]}
+                                                    pathOptions={{ color: '#3b82f6', weight: 2, dashArray: '5, 10', opacity: 0.8 }}
+                                                    interactive={false}
+                                                />
+                                            )}
 
-                                                    // Update elements state
-                                                    const updatedCables = elements.cables.map(c =>
-                                                        c.id === cable.id ? { ...c, points: newPoints } : c
-                                                    );
-                                                    setElements({ ...elements, cables: updatedCables });
+                                            <Marker
+                                                key={`${cable.id}-mid-${index}`}
+                                                position={[midLat, midLng]}
+                                                draggable={true}
+                                                icon={divIcon({
+                                                    className: 'midpoint-icon',
+                                                    html: `<div style="background-color: white; width: 6px; height: 6px; border: 2px solid #3b82f6; border-radius: 50%; opacity: 0.8; box-shadow: 0 0 5px rgba(59,130,246,0.5);"></div>`,
+                                                    iconSize: [6, 6],
+                                                    iconAnchor: [3, 3]
+                                                })}
+                                                eventHandlers={{
+                                                    dragstart: () => {
+                                                        setDraggingMidpoint({ cableId: cable.id, index, latlng: new LatLng(midLat, midLng) });
+                                                    },
+                                                    drag: (e) => {
+                                                        const marker = e.target;
+                                                        setDraggingMidpoint({ cableId: cable.id, index, latlng: marker.getLatLng() });
+                                                    },
+                                                    dragend: async (e) => {
+                                                        const marker = e.target;
+                                                        const newLatLng = marker.getLatLng();
+                                                        const newPoints = [...cable.points];
+                                                        newPoints.splice(index + 1, 0, newLatLng);
 
-                                                    // Persist
-                                                    try {
-                                                        await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
-                                                    } catch (err) { console.error(err); }
-                                                }
-                                            }}
-                                        />
+                                                        // Update state
+                                                        const updatedCables = elements.cables.map(c =>
+                                                            c.id === cable.id ? { ...c, points: newPoints } : c
+                                                        );
+                                                        setElements({ ...elements, cables: updatedCables });
+                                                        setDraggingMidpoint(null);
+
+                                                        // Persist
+                                                        try {
+                                                            await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
+                                                            await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
+                                                        } catch (err) { console.error(err); }
+                                                    },
+                                                    click: async (e) => {
+                                                        e.originalEvent.stopPropagation();
+                                                        // Fallback for simple click insertion
+                                                        const newPoints = [...cable.points];
+                                                        newPoints.splice(index + 1, 0, new LatLng(midLat, midLng));
+                                                        const updatedCables = elements.cables.map(c =>
+                                                            c.id === cable.id ? { ...c, points: newPoints } : c
+                                                        );
+                                                        setElements({ ...elements, cables: updatedCables });
+                                                        try {
+                                                            await api.patch(`/network-elements/cables/${cable.id}`, { points: newPoints });
+                                                            await api.post(`/network-elements/cables/auto-poles`, { cableId: cable.id });
+                                                        } catch (err) { console.error(err); }
+                                                    }
+                                                }}
+                                            />
+                                        </Fragment>
                                     );
                                 })}
                             </div>
@@ -1666,68 +1704,157 @@ const Map = () => {
             {/* Context Menu (A6) */}
             {contextMenu && (
                 <div
-                    className="fixed z-[9999] bg-gray-950/90 border border-gray-700/50 rounded-xl shadow-2xl py-1.5 min-w-[200px] backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.2)] py-1 min-w-[220px] animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
                     style={{ top: contextMenu.latlng.y, left: contextMenu.latlng.x }}
                 >
-                    <div className="px-3 py-1 border-b border-gray-800/50 mb-1">
-                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">Opções: {contextMenu.type.toUpperCase()}</span>
-                    </div>
-
                     {contextMenu.type === 'cable' && (
                         <>
+                            <button
+                                onClick={() => {
+                                    handleElementClick(null, contextMenu.element, 'cable');
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center justify-between px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group border-b border-gray-50"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Settings size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                    <span>Propriedades do elemento</span>
+                                </div>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Search size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Verificar regiões do elemento</span>
+                            </button>
                             <button
                                 onClick={() => {
                                     setEditingCableId(contextMenu.element.id);
                                     setContextMenu(null);
                                 }}
-                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-600/20 text-blue-400 text-xs font-bold transition-all text-left"
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
                             >
-                                <Edit3 size={14} /> Editar Geometria
+                                <Edit3 size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Entrar em edição</span>
                             </button>
+                            <button
+                                onClick={() => {
+                                    handleTrace(contextMenu.element.id, 1);
+                                    setContextMenu(null);
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
+                                <Zap size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Iluminar</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Palette size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Editar Cor</span>
+                            </button>
+                            <div className="h-[1px] bg-gray-100 my-1" />
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Repeat size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Trocar para projeto filho</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <BadgeCheck size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Licenciar postes</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Mountain size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Atribuir distância com relevo</span>
+                            </button>
+                            <div className="h-[1px] bg-gray-100 my-1" />
                             <button
                                 onClick={() => {
                                     handleSplitCable(contextMenu.element, contextMenu.latlng);
                                     setContextMenu(null);
                                 }}
-                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-orange-600/20 text-orange-400 text-xs font-bold transition-all text-left"
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
                             >
-                                <Scissors size={14} /> Inserir Caixa (Split)
+                                <Link size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Conectar em caixas (Split)</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Link2 size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Conectar em postes</span>
+                            </button>
+                            <div className="h-[1px] bg-gray-100 my-1" />
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <RefreshCw size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Converter pontos em postes</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <RefreshCcw size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Converter postes em pontos</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <CircleOff size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Remover pontos</span>
+                            </button>
+                            <button onClick={() => setContextMenu(null)} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group">
+                                <Layers size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Mostrar reserva técnica</span>
+                            </button>
+                            <div className="h-[1px] bg-gray-100 my-1" />
+                            <button
+                                onClick={async () => {
+                                    if (confirm(`Deseja excluir este cabo?`)) {
+                                        try {
+                                            await api.delete(`/network-elements/cables/${contextMenu.element.id}`);
+                                            fetchElements();
+                                            setContextMenu(null);
+                                        } catch (err) { alert('Erro ao excluir'); }
+                                    }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 text-[11px] font-bold transition-all text-left group"
+                            >
+                                <Trash2 size={14} className="text-red-400 group-hover:text-red-600" />
+                                <span>Remover</span>
                             </button>
                         </>
                     )}
 
-                    {contextMenu.type === 'box' && (
-                        <button
-                            onClick={() => {
-                                setViewingBoxId(contextMenu.element.id);
-                                setContextMenu(null);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-emerald-600/20 text-emerald-400 text-xs font-bold transition-all text-left"
-                        >
-                            <Box size={14} /> Ver Interno
-                        </button>
-                    )}
-
-                    <button
-                        onClick={async () => {
-                            if (confirm(`Deseja excluir este ${contextMenu.type === 'cable' ? 'cabo' : 'elemento'}?`)) {
-                                try {
-                                    await api.delete(`/network-elements/${contextMenu.type}s/${contextMenu.element.id}`);
-                                    fetchElements();
+                    {contextMenu.type !== 'cable' && (
+                        <>
+                            <button
+                                onClick={() => {
+                                    handleElementClick(null, contextMenu.element, contextMenu.type as any);
                                     setContextMenu(null);
-                                } catch (err) { alert('Erro ao excluir'); }
-                            }
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-600/20 text-red-500 text-xs font-bold transition-all text-left mt-1 border-t border-gray-800/50"
-                    >
-                        <Trash2 size={14} /> Excluir
-                    </button>
-                    <button
-                        onClick={() => setContextMenu(null)}
-                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-700/20 text-gray-400 text-xs font-bold transition-all text-left mt-1 border-t border-gray-800/50"
-                    >
-                        <X size={14} /> Fechar
-                    </button>
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                            >
+                                <Settings size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                <span>Propriedades do elemento</span>
+                            </button>
+                            {contextMenu.type === 'box' && (
+                                <button
+                                    onClick={() => {
+                                        setViewingBoxId(contextMenu.element.id);
+                                        setContextMenu(null);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-blue-50 text-gray-700 text-[11px] font-medium transition-all text-left group"
+                                >
+                                    <Box size={14} className="text-gray-400 group-hover:text-blue-500" />
+                                    <span>Ver Interno (Editor de Fusão)</span>
+                                </button>
+                            )}
+                            <div className="h-[1px] bg-gray-100 my-1" />
+                            <button
+                                onClick={async () => {
+                                    if (confirm(`Deseja excluir este elemento?`)) {
+                                        try {
+                                            await api.delete(`/network-elements/${contextMenu.type}s/${contextMenu.element.id}`);
+                                            fetchElements();
+                                            setContextMenu(null);
+                                        } catch (err) { alert('Erro ao excluir'); }
+                                    }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 text-[11px] font-bold transition-all text-left group"
+                            >
+                                <Trash2 size={14} className="text-red-400 group-hover:text-red-600" />
+                                <span>Remover</span>
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 
