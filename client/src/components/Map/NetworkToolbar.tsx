@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, Box, Cable as CableIcon, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, Undo2, Redo2, Sparkles, Activity } from 'lucide-react';
+import { Zap, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, Undo2, Redo2, Sparkles } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
 export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap';
