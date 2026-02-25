@@ -124,7 +124,7 @@ export const NetworkToolbar = ({
                     active={activeTool === 'select'}
                     onClick={() => onToolChange('select')}
                     icon={<MousePointer2 size={20} />}
-                    label="Select"
+                    label="TESTE-BOTÃO"
                 />
                 <ToolbarItem
                     active={activeTool === 'ruler'}
