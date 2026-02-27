@@ -1,11 +1,18 @@
 import { Controller, Get, Post } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { Public } from '../auth/public.decorator';
 
 const execAsync = promisify(exec);
 
 @Controller('system')
 export class SystemController {
+
+    @Get('status')
+    @Public()
+    getStatus() {
+        return { status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() };
+    }
 
     @Get('check-update')
     async checkUpdate() {

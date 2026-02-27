@@ -391,7 +391,6 @@ const Map = () => {
     const [draggingMidpoint, setDraggingMidpoint] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [draggingVertex, setDraggingVertex] = useState<{ cableId: string, index: number, latlng: LatLng } | null>(null);
     const [adjacencyModal, setAdjacencyModal] = useState<{ isOpen: boolean, cableId: string, newPoints: any[] } | null>(null);
-    const [snapConfig, setSnapConfig] = useState({ enabled: true, radius: 20 });
     const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
     const [history, setHistory] = useState<any[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
@@ -1054,8 +1053,6 @@ const Map = () => {
                 showInventory={showInventory}
                 showCoverage={showCoverage}
                 onToggleCoverage={() => setShowCoverage(!showCoverage)}
-                snapConfig={snapConfig}
-                onSnapConfigChange={setSnapConfig}
                 onUndo={() => handleUndoRedo('undo')}
                 onRedo={() => handleUndoRedo('redo')}
                 canUndo={historyIndex > 0}

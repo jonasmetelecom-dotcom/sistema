@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Cable, Split as SplitIcon, Link, Trash2, FileDown, Camera, Image as ImageIcon, Plus, Activity } from 'lucide-react';
+import { X, Cable, Split as SplitIcon, Link, Trash2, FileDown, Camera, Image as ImageIcon, Plus } from 'lucide-react';
 import api from '../../services/api';
 import { getFiberColor, getFiberName } from '../../utils/fiberColors';
 import { generateFusionDiagram } from '../../utils/FusionDiagramGenerator';

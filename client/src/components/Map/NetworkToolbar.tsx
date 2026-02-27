@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Zap, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Radio, HardDrive, Undo2, Redo2, Sparkles } from 'lucide-react';
+import { Zap, MousePointer2, Settings2, Trash2, Package, FileText, Layers, PieChart, Ruler, Menu, ChevronLeft, Home, Cable, HardDrive, Undo2, Redo2, Sparkles } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 
 export type ToolType = 'select' | 'pole' | 'box' | 'cable' | 'rbs' | 'ruler' | 'customer' | 'heatmap';
@@ -41,8 +41,6 @@ interface NetworkToolbarProps {
     showInventory?: boolean;
     showCoverage?: boolean;
     onToggleCoverage?: () => void;
-    snapConfig?: { enabled: boolean, radius: number };
-    onSnapConfigChange?: (config: { enabled: boolean, radius: number }) => void;
     onUndo?: () => void;
     onRedo?: () => void;
     canUndo?: boolean;
@@ -73,8 +71,6 @@ export const NetworkToolbar = ({
     showInventory,
     showCoverage,
     onToggleCoverage,
-    snapConfig,
-    onSnapConfigChange,
     onUndo,
     onRedo,
     canUndo,
@@ -124,7 +120,7 @@ export const NetworkToolbar = ({
                     active={activeTool === 'select'}
                     onClick={() => onToolChange('select')}
                     icon={<MousePointer2 size={20} />}
-                    label="TESTE-BOTÃO"
+                    label="Selecionar"
                 />
                 <ToolbarItem
                     active={activeTool === 'ruler'}
@@ -144,7 +140,7 @@ export const NetworkToolbar = ({
                     active={!!showInventory}
                     onClick={() => onToggleInventory && onToggleInventory()}
                     icon={<Package size={20} />}
-                    label="BOM"
+                    label="Inventário"
                     className="text-blue-400"
                 />
                 <ToolbarItem
@@ -224,18 +220,32 @@ export const NetworkToolbar = ({
                         <div className="h-px bg-gray-700 my-1 mx-2" />
 
                         <ToolbarItem
+                            active={activeTool === 'pole'}
+                            onClick={() => onToolChange('pole')}
+                            icon={<Zap size={20} />}
+                            label="Poste"
+                            className="text-yellow-400"
+                        />
+                        <ToolbarItem
+                            active={activeTool === 'box'}
+                            onClick={() => onToolChange('box')}
+                            icon={<Package size={20} />}
+                            label="Caixa"
+                            className="text-green-400"
+                        />
+                        <ToolbarItem
+                            active={activeTool === 'cable'}
+                            onClick={() => onToolChange('cable')}
+                            icon={<Cable size={20} />}
+                            label="Cabo"
+                            className="text-pink-400"
+                        />
+                        <ToolbarItem
                             active={activeTool === 'customer'}
                             onClick={() => onToolChange('customer')}
                             icon={<Home size={20} />}
                             label="Cliente"
                             className="text-cyan-400"
-                        />
-                        <ToolbarItem
-                            active={activeTool === 'rbs'}
-                            onClick={() => onToolChange('rbs')}
-                            icon={<Radio size={20} />}
-                            label="RBS"
-                            className="text-purple-400"
                         />
                     </>
                 )}
